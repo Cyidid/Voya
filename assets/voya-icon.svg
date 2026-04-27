@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Background -->
+  <rect width="512" height="512" rx="112" fill="#1A1410"/>
+  <!-- Outer compass ring -->
+  <circle cx="256" cy="256" r="168" stroke="#C4854A" stroke-width="8" fill="none" opacity="0.35"/>
+  <circle cx="256" cy="256" r="140" stroke="#C4854A" stroke-width="2" fill="none" opacity="0.20"/>
+  <!-- Compass needle (north / south) -->
+  <polygon points="256,100 268,252 256,264 244,252" fill="#C4854A"/>
+  <polygon points="256,412 244,260 256,248 268,260" fill="#8C6E4E" opacity="0.7"/>
+  <!-- Compass center dot -->
+  <circle cx="256" cy="256" r="14" fill="#C4854A"/>
+  <circle cx="256" cy="256" r="6" fill="#1A1410"/>
+  <!-- Cardinal tick marks -->
+  <line x1="256" y1="88" x2="256" y2="108" stroke="#C4854A" stroke-width="5" stroke-linecap="round"/>
+  <line x1="256" y1="404" x2="256" y2="424" stroke="#C4854A" stroke-width="5" stroke-linecap="round" opacity="0.5"/>
+  <line x1="88" y1="256" x2="108" y2="256" stroke="#C4854A" stroke-width="5" stroke-linecap="round" opacity="0.5"/>
+  <line x1="404" y1="256" x2="424" y2="256" stroke="#C4854A" stroke-width="5" stroke-linecap="round" opacity="0.5"/>
+  <!-- "V" lettermark -->
+  <path d="M214 188 L256 308 L298 188" stroke="#C4854A" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

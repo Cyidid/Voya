@@ -1,0 +1,936 @@
+"""
+监督学习行程规划引擎（推理模块）
+使用 sklearn VotingClassifier（集成学习）训练真实模型
+训练数据：10000 条专家标注数据（程序生成）
+"""
+
+import os
+import json
+import pickle
+import random
+import logging
+
+logger = logging.getLogger(__name__)
+import numpy as np
+from typing import Optional, List, Tuple
+
+try:
+    from sklearn.ensemble import (
+        GradientBoostingClassifier,
+        RandomForestClassifier,
+        ExtraTreesClassifier,
+        VotingClassifier,
+    )
+    from sklearn.model_selection import train_test_split
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
+    logger.warning("sklearn 未安装，请运行: pip install scikit-learn")
+
+# ── 推荐类型定义 ──────────────────────────────────────────
+RECOMMENDATION_TYPES = {
+    0: "budget_sightseeing", # 经济观光
+    1: "cultural_deep_dive", # 文化深度游
+    2: "luxury_experience", # 奢华体验
+    3: "family_friendly", # 亲子家庭
+    4: "foodie_adventure", # 美食购物
+    5: "adventure_outdoor", # 户外探险
+    6: "romantic_couple", # 情侣浪漫
+    7: "group_social", # 团队社交
+}
+
+RECOMMENDATION_LABELS_ZH = {
+    0: "经济观光",
+    1: "文化深度游",
+    2: "奢华体验",
+    3: "亲子家庭游",
+    4: "美食购物游",
+    5: "户外探险游",
+    6: "情侣浪漫游",
+    7: "团队社交游",
+}
+
+# ── 特征列表（用于可解释性）────────────────────────────────
+FEATURE_NAMES = [
+    "days", "budget_level", "num_people", "group_type",
+    "has_special", "travel_mode",
+    "interest_culture", "interest_nature", "interest_food",
+    "interest_shopping", "interest_history", "interest_nightlife", "interest_outdoor",
+    "city_paris", "city_tokyo", "city_newyork", "city_london", "city_rome",
+    "city_seoul", "city_dubai",
+]
+
+FEATURE_NAMES_ZH = {
+    "days": "旅行天数",
+    "budget_level": "预算等级",
+    "num_people": "出行人数",
+    "group_type": "出行类型",
+    "has_special": "特殊需求",
+    "travel_mode": "出行方式",
+    "interest_culture": "文化兴趣",
+    "interest_nature": "自然兴趣",
+    "interest_food": "美食兴趣",
+    "interest_shopping": "购物兴趣",
+    "interest_history": "历史兴趣",
+    "interest_nightlife": "夜生活兴趣",
+    "interest_outdoor": "户外兴趣",
+    "city_paris": "城市=巴黎",
+    "city_tokyo": "城市=东京",
+    "city_newyork": "城市=纽约",
+    "city_london": "城市=伦敦",
+    "city_rome": "城市=罗马",
+    "city_seoul": "城市=首尔",
+    "city_dubai": "城市=迪拜",
+}
+
+MODEL_PATH = os.path.join(os.path.dirname(__file__), "model.pkl")
+DATASET_PATH = os.path.join(os.path.dirname(__file__), "training_dataset.json")
+
+CITY_DAILY_BUDGET = {
+    "巴黎": {"低": 500, "中": 1200, "高": 3500}, "东京": {"低": 400, "中": 900, "高": 2800},
+    "纽约": {"低": 550, "中": 1300, "高": 3800}, "伦敦": {"低": 520, "中": 1200, "高": 3500},
+    "罗马": {"低": 450, "中": 1000, "高": 3000}, "悉尼": {"低": 450, "中": 1000, "高": 3000},
+    "巴塞罗那": {"低": 380, "中": 850, "高": 2600}, "曼谷": {"低": 180, "中": 450, "高": 1500},
+    "新加坡": {"低": 380, "中": 900, "高": 2800}, "首尔": {"低": 280, "中": 650, "高": 2000},
+    "迪拜": {"低": 450, "中": 1200, "高": 4000}, "阿姆斯特丹": {"低": 520, "中": 1100, "高": 3200},
+    "维也纳": {"低": 450, "中": 1000, "高": 3000}, "布拉格": {"低": 250, "中": 600, "高": 1800},
+    "普吉岛": {"低": 180, "中": 450, "高": 1600}, "马尔代夫": {"低": 600, "中": 1800, "高": 6000},
+    "伊斯坦布尔": {"低": 220, "中": 550, "高": 1800}, "里斯本": {"低": 300, "中": 750, "高": 2200},
+}
+
+
+# ── 训练数据生成 ───────────────────────────────────────────
+
+def _expert_label(f: dict) -> int:
+    """
+    专家规则：根据特征生成训练标签。
+    这模拟了"人工标注"的过程，让模型从这些模式中学习。
+    """
+    budget = f["budget_level"] # 0=低, 1=中, 2=高
+    has_special = f["has_special"] # 1=有特殊需求
+    group_type = f["group_type"] # 0=单人, 1=情侣, 2=朋友, 3=家庭
+    num_people = f["num_people"] # 1-12 人
+    culture = f["interest_culture"]
+    history = f["interest_history"]
+    food = f["interest_food"]
+    shopping = f["interest_shopping"]
+    nature = f["interest_nature"]
+    outdoor = f["interest_outdoor"]
+    nightlife = f["interest_nightlife"]
+    days = f["days"]
+
+    # 优先级1：情侣 + 高预算 → 情侣浪漫游
+    if group_type == 1 and budget == 2:
+        return 6
+    # 优先级2：家庭 + 特殊需求 → 亲子家庭游
+    if group_type == 3 and has_special == 1:
+        return 3
+    # 优先级3：户外/自然兴趣 + 天数>=3 → 户外探险游
+    if (outdoor + nature) >= 1 and days >= 3:
+        return 5
+    # 优先级4：夜生活 + 人数>=4 → 团队社交游
+    if nightlife == 1 and num_people >= 4:
+        return 7
+    # 优先级5：高预算 → 奢华体验
+    if budget == 2:
+        return 2
+    # 优先级6：文化/历史为主 → 文化深度游
+    if (culture + history) >= 1 and (food + shopping) == 0:
+        return 1
+    # 优先级7：美食/购物为主 → 美食购物游
+    if (food + shopping) >= 1 and (culture + history) == 0:
+        return 4
+    # 优先级8：低预算 → 经济观光
+    if budget == 0:
+        return 0
+    # 默认：文化深度游
+    return 1
+
+
+def generate_training_dataset(n_samples: int = 10000, noise_rate: float = 0.0) -> Tuple[np.ndarray, np.ndarray, list]:
+    """
+    生成 n_samples 条训练数据（标签为专家规则生成的"真实"标签）。
+    noise_rate：对标签添加噪声的概率（0.0 = 不加噪声，用于生成干净数据集）。
+    返回 (X, y, records)。
+    """
+    random.seed(42)
+    np.random.seed(42)
+
+    cities = ["巴黎", "东京", "纽约", "伦敦", "罗马", "首尔", "迪拜"]
+    interests_all = ["文化", "自然", "美食", "购物", "历史", "夜生活", "户外"]
+    budget_map = {"低": 0, "中": 1, "高": 2}
+    budget_names = ["低", "中", "高"]
+    # group_type: 0=单人, 1=情侣, 2=朋友, 3=家庭
+    group_type_names = ["单人", "情侣", "朋友", "家庭"]
+    group_type_weights = [0.25, 0.25, 0.25, 0.25] # 公平性：各出行群体等权采样
+    special_names = ["无", "有儿童", "有老人", "轮椅友好"]
+    # travel_mode: 0=飞机, 1=高铁, 2=自驾, 3=邮轮
+    travel_mode_names = ["飞机", "高铁", "自驾", "邮轮"]
+
+    X, y, records = [], [], []
+
+    for i in range(n_samples):
+        city = random.choice(cities)
+        days = random.randint(1, 7)
+        budget_name = random.choice(budget_names)
+        budget_level = budget_map[budget_name]
+        group_type = int(np.random.choice([0, 1, 2, 3], p=group_type_weights))
+        group_type_name = group_type_names[group_type]
+        num_people = random.randint(1, 12)
+        travel_mode = random.randint(0, 3)
+        special = random.choice(special_names)
+        has_special = 0 if special == "无" else 1
+        selected = random.sample(interests_all, random.randint(1, 4))
+
+        f = {
+            "days": days,
+            "budget_level": budget_level,
+            "num_people": num_people,
+            "group_type": group_type,
+            "has_special": has_special,
+            "travel_mode": travel_mode,
+            "interest_culture": 1 if "文化" in selected else 0,
+            "interest_nature": 1 if "自然" in selected else 0,
+            "interest_food": 1 if "美食" in selected else 0,
+            "interest_shopping": 1 if "购物" in selected else 0,
+            "interest_history": 1 if "历史" in selected else 0,
+            "interest_nightlife": 1 if "夜生活" in selected else 0,
+            "interest_outdoor": 1 if "户外" in selected else 0,
+            "city_paris": 1 if city == "巴黎" else 0,
+            "city_tokyo": 1 if city == "东京" else 0,
+            "city_newyork": 1 if city == "纽约" else 0,
+            "city_london": 1 if city == "伦敦" else 0,
+            "city_rome": 1 if city == "罗马" else 0,
+            "city_seoul": 1 if city == "首尔" else 0,
+            "city_dubai": 1 if city == "迪拜" else 0,
+        }
+        label = _expert_label(f)
+
+        # 可选标签噪声（只在训练集中注入，测试集保持干净）
+        if noise_rate > 0 and random.random() < noise_rate:
+            label = random.randint(0, 7)
+
+        X.append([f[name] for name in FEATURE_NAMES])
+        y.append(label)
+        records.append({
+            "id": f"TRAIN_{i+1:05d}",
+            "city": city,
+            "days": days,
+            "budget": budget_name,
+            "group": group_type_name,
+            "num_people": num_people,
+            "travel_mode": travel_mode_names[travel_mode],
+            "special": special,
+            "interests": selected,
+            "label": label,
+            "label_zh": RECOMMENDATION_LABELS_ZH[label],
+        })
+
+    return np.array(X), np.array(y), records
+
+
+# ── 引擎主类 ──────────────────────────────────────────────
+
+class SupervisedEngine:
+    """监督学习引擎 - VotingClassifier (GBT + RF + ExtraTrees)"""
+
+    def __init__(self):
+        self.model = None
+        self.model_type = "VotingClassifier(GBT+RF+ExtraTrees)"
+        self.dataset_size = 10000
+        self.model_accuracy = 0.0
+        self.feature_importances: dict = {}
+        self.fairness_metrics: dict = {}   # AOD / SPD 公平性指标
+        self._load_or_train()
+
+    def _load_or_train(self):
+        """加载已有模型，否则训练新模型"""
+        if os.path.exists(MODEL_PATH):
+            try:
+                with open(MODEL_PATH, "rb") as f:
+                    saved = pickle.load(f)
+                # 检查模型类型是否匹配，否则重新训练
+                saved_type = saved.get("model_type", "")
+                if saved_type != self.model_type:
+                    logger.warning(f"已有模型类型 ({saved_type}) 与当前不匹配，重新训练")
+                    os.remove(MODEL_PATH)
+                    raise ValueError("model type mismatch")
+                self.model = saved["model"]
+                self.feature_importances = saved["feature_importances"]
+                self.model_accuracy = saved["accuracy"]
+                self.dataset_size = saved.get("dataset_size", self.dataset_size)
+                self.fairness_metrics = saved.get("fairness_metrics", {})
+                logger.info(f"监督学习模型已加载 (训练集: {self.dataset_size} 条, "
+                      f"准确率: {self.model_accuracy:.1%})")
+                return
+            except Exception as e:
+                logger.warning(f"加载模型失败: {e}，重新训练")
+
+        self._train()
+
+    def _train(self):
+        """生成数据集并训练 VotingClassifier 集成模型"""
+        if not SKLEARN_AVAILABLE:
+            logger.warning("sklearn 未安装，回退到规则推理")
+            self.model = None
+            return
+
+        # 如果存在旧模型文件，先删除
+        if os.path.exists(MODEL_PATH):
+            os.remove(MODEL_PATH)
+            logger.info(f"已删除旧模型文件: {MODEL_PATH}")
+
+        logger.info(f"生成训练数据集 ({self.dataset_size} 条)...")
+        # 全数据集加入 15% 标签噪声，模拟真实用户标注不确定性
+        # 这样测试集也包含现实噪声，准确率反映真实世界性能而非规则完美复现
+        X, y, records = generate_training_dataset(self.dataset_size, noise_rate=0.15)
+
+        # 保存数据集（供课程提交）
+        try:
+            with open(DATASET_PATH, "w", encoding="utf-8") as f:
+                json.dump(records, f, ensure_ascii=False, indent=2)
+            logger.debug(f"训练数据集已保存: {DATASET_PATH}")
+        except Exception:
+            pass
+
+        # 80/20 分割训练测试集
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=0.2, random_state=42
+        )
+
+        logger.info(f"训练集: {len(X_train)} 条，测试集: {len(X_test)} 条（均含15%标签噪声）")
+
+        logger.info(f"训练 {self.model_type}...")
+        gbt = GradientBoostingClassifier(
+            n_estimators=120, learning_rate=0.08, max_depth=3,
+            subsample=0.75, random_state=42
+        )
+        rf = RandomForestClassifier(
+            n_estimators=120, max_depth=6, min_samples_leaf=5, random_state=42
+        )
+        et = ExtraTreesClassifier(
+            n_estimators=100, max_depth=6, min_samples_leaf=5, random_state=42
+        )
+        self.model = VotingClassifier(
+            estimators=[("gbt", gbt), ("rf", rf), ("et", et)],
+            voting="soft",
+        )
+        self.model.fit(X_train, y_train)
+
+        self.model_accuracy = self.model.score(X_test, y_test)
+
+        # 从子模型聚合特征重要性（RF + ET 支持；GBT 也支持）
+        fi_gbt = self.model.estimators_[0].feature_importances_
+        fi_rf = self.model.estimators_[1].feature_importances_
+        fi_et = self.model.estimators_[2].feature_importances_
+        fi_avg = (fi_gbt + fi_rf + fi_et) / 3.0
+        self.feature_importances = dict(zip(FEATURE_NAMES, fi_avg))
+
+        # ── 计算公平性指标（AOD / SPD） ──────────────────────────
+        y_pred = self.model.predict(X_test)
+        self.fairness_metrics = self._compute_fairness(X_test, y_test, y_pred)
+
+        logger.info(f"训练完成 - 准确率: {self.model_accuracy:.1%}")
+        logger.info(f"Top-3 重要特征: {self._top_features(3)}")
+        logger.info(f"公平性 AOD(特殊需求): {self.fairness_metrics.get('aod_special', 0.0):.4f}  "
+                    f"AOD(出行类型): {self.fairness_metrics.get('aod_group_type', 0.0):.4f}")
+
+        # 保存模型
+        try:
+            with open(MODEL_PATH, "wb") as f:
+                pickle.dump({
+                    "model": self.model,
+                    "model_type": self.model_type,
+                    "feature_importances": self.feature_importances,
+                    "accuracy": self.model_accuracy,
+                    "dataset_size": self.dataset_size,
+                    "fairness_metrics": self.fairness_metrics,
+                }, f)
+            logger.info(f"模型已保存: {MODEL_PATH}")
+        except Exception as e:
+            logger.warning(f"保存模型失败: {e}")
+
+    # ── 公平性指标计算 ────────────────────────────────────────
+
+    @staticmethod
+    def _tpr_fpr(mask: np.ndarray, y_true_bin: np.ndarray, y_pred_bin: np.ndarray):
+        """计算某子群体的 TPR 和 FPR"""
+        yt = y_true_bin[mask]
+        yp = y_pred_bin[mask]
+        tp = int(((yt == 1) & (yp == 1)).sum())
+        fn = int(((yt == 1) & (yp == 0)).sum())
+        fp = int(((yt == 0) & (yp == 1)).sum())
+        tn = int(((yt == 0) & (yp == 0)).sum())
+        tpr = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        fpr = fp / (fp + tn) if (fp + tn) > 0 else 0.0
+        return round(tpr, 4), round(fpr, 4)
+
+    def _compute_fairness(
+        self,
+        X_test: np.ndarray,
+        y_test: np.ndarray,
+        y_pred: np.ndarray,
+    ) -> dict:
+        """
+        计算 Average Odds Difference（AOD）和 Statistical Parity Difference（SPD）。
+
+        参考：IBM AIF360 / Hardt et al. 2016
+        AOD = ½ × [(FPR_unpriv − FPR_priv) + (TPR_unpriv − TPR_priv)]
+        SPD = P(ŷ=1 | unpriv) − P(ŷ=1 | priv)
+        AOD=0 / SPD=0 → 完全公平；|AOD|<0.05 → 可接受
+
+        受保护属性1: has_special（特殊需求旅行者）
+            1 = 有特殊需求（携带儿童/老人/轮椅用户）= 弱势群体
+            0 = 无特殊需求 = 基准群体
+            理由：特殊需求旅行者通常在活动覆盖面、景点可达性上处于不利地位，
+                  属于旅行场景中有意义的可访问性保护属性，与用户主动申报的预算不同，
+                  老人/残障/婴儿等需求往往非用户主动选择。
+
+        受保护属性2: group_type（出行类型）
+            3(家庭) = 弱势群体，其他(单人/情侣/朋友) = 优势群体
+            理由：家庭出行（尤其携带未成年人）在推荐多样性上可能受限。
+
+        有利结果（favorable label）: 预测不为经济观光(label ≠ 0)，即获得有品质的旅行推荐。
+        注：budget 为用户主动申报的约束条件，不属于人口学保护属性，不纳入 AOD 计算。
+        """
+        out: dict = {}
+
+        # 有利输出二值化：非"经济观光"即为 favorable
+        y_test_bin = (y_test != 0).astype(int)
+        y_pred_bin = (y_pred != 0).astype(int)
+
+        # ── 受保护属性1: has_special（特殊需求 / 可访问性）────────────
+        special_col  = FEATURE_NAMES.index("has_special")
+        svals = X_test[:, special_col]
+        mask_special    = (svals == 1)   # 有特殊需求 = 弱势群体（unprivileged）
+        mask_no_special = (svals == 0)   # 无特殊需求 = 基准群体（privileged）
+
+        if mask_special.sum() > 0 and mask_no_special.sum() > 0:
+            tpr_sp,  fpr_sp  = self._tpr_fpr(mask_special,    y_test_bin, y_pred_bin)
+            tpr_nsp, fpr_nsp = self._tpr_fpr(mask_no_special, y_test_bin, y_pred_bin)
+            aod_s = 0.5 * ((fpr_sp - fpr_nsp) + (tpr_sp - tpr_nsp))
+            spd_s = (y_pred_bin[mask_special].mean() - y_pred_bin[mask_no_special].mean())
+            out["aod_special"]         = round(float(aod_s), 4)
+            out["spd_special"]         = round(float(spd_s), 4)
+            out["tpr_special"]         = tpr_sp
+            out["fpr_special"]         = fpr_sp
+            out["tpr_no_special"]      = tpr_nsp
+            out["fpr_no_special"]      = fpr_nsp
+            out["n_special"]           = int(mask_special.sum())
+            out["n_no_special"]        = int(mask_no_special.sum())
+
+        # ── 受保护属性2: group_type（出行类型：家庭 vs 非家庭）────────
+        group_col  = FEATURE_NAMES.index("group_type")
+        gvals = X_test[:, group_col]
+        mask_family    = (gvals == 3)
+        mask_nonfamily = (gvals != 3)
+
+        if mask_family.sum() > 0 and mask_nonfamily.sum() > 0:
+            tpr_fam, fpr_fam = self._tpr_fpr(mask_family,    y_test_bin, y_pred_bin)
+            tpr_nfm, fpr_nfm = self._tpr_fpr(mask_nonfamily, y_test_bin, y_pred_bin)
+            aod_g = 0.5 * ((fpr_fam - fpr_nfm) + (tpr_fam - tpr_nfm))
+            spd_g = (y_pred_bin[mask_family].mean() - y_pred_bin[mask_nonfamily].mean())
+            out["aod_group_type"]  = round(float(aod_g), 4)
+            out["spd_group_type"]  = round(float(spd_g), 4)
+            out["n_family"]        = int(mask_family.sum())
+            out["n_nonfamily"]     = int(mask_nonfamily.sum())
+
+        out["favorable_label"]   = "非经济观光类(label≠0)"
+        out["protected_attr_1"]  = "has_special（特殊需求旅行者）"
+        out["protected_attr_2"]  = "group_type（家庭 vs 非家庭）"
+        out["method"]            = "Average Odds Difference (Hardt et al. 2016)"
+        return out
+
+    @staticmethod
+    def _aod_level(aod: float) -> str:
+        """AOD 公平等级判断"""
+        a = abs(aod)
+        if a < 0.05:
+            return "公平（|AOD|<0.05）"
+        elif a < 0.10:
+            return "边界（0.05≤|AOD|<0.10）"
+        else:
+            return "偏差（|AOD|≥0.10，需关注）"
+
+    def _extract_features(self, meta: dict) -> dict:
+        """从用户元数据提取特征向量"""
+        city = meta.get("city", "巴黎")
+        interests = meta.get("interests", [])
+        budget_map = {"低": 0, "中": 1, "高": 2}
+        group_type_map = {"单人": 0, "情侣": 1, "夫妻": 1, "朋友": 2, "家庭": 3}
+        travel_mode_map = {"飞机": 0, "高铁": 1, "自驾": 2, "邮轮": 3}
+
+        return {
+            "days": meta.get("days", 3),
+            "budget_level": budget_map.get(meta.get("budget", "中"), 1),
+            "num_people": int(meta.get("num_people", 2)),
+            "group_type": group_type_map.get(meta.get("group", "情侣"), 1),
+            "has_special": 0 if meta.get("special", "无") == "无" else 1,
+            "travel_mode": travel_mode_map.get(meta.get("travel_mode", "飞机"), 0),
+            "interest_culture": 1 if "文化" in interests else 0,
+            "interest_nature": 1 if "自然" in interests else 0,
+            "interest_food": 1 if "美食" in interests else 0,
+            "interest_shopping": 1 if "购物" in interests else 0,
+            "interest_history": 1 if "历史" in interests else 0,
+            "interest_nightlife": 1 if "夜生活" in interests else 0,
+            "interest_outdoor": 1 if "户外" in interests else 0,
+            "city_paris": 1 if city == "巴黎" else 0,
+            "city_tokyo": 1 if city == "东京" else 0,
+            "city_newyork": 1 if city == "纽约" else 0,
+            "city_london": 1 if city == "伦敦" else 0,
+            "city_rome": 1 if city == "罗马" else 0,
+            "city_seoul": 1 if city == "首尔" else 0,
+            "city_dubai": 1 if city == "迪拜" else 0,
+        }
+
+    def _predict(self, features: dict) -> Tuple[int, float]:
+        """预测推荐类型及置信度"""
+        if self.model and SKLEARN_AVAILABLE:
+            X = np.array([[features[n] for n in FEATURE_NAMES]])
+            pred = int(self.model.predict(X)[0])
+            proba = float(self.model.predict_proba(X)[0].max())
+            return pred, proba
+        # Fallback：用专家规则直接标注
+        return _expert_label(features), 0.80
+
+    def _top_features(self, n: int = 3) -> List[Tuple[str, float]]:
+        """返回最重要的 n 个特征（中文名+权重）"""
+        sorted_f = sorted(
+            self.feature_importances.items(), key=lambda x: x[1], reverse=True
+        )
+        return [(FEATURE_NAMES_ZH.get(k, k), round(v, 4)) for k, v in sorted_f[:n]]
+
+    def generate_itinerary(self, test_case: dict) -> dict:
+        """生成行程"""
+        meta = test_case["metadata"]
+        features = self._extract_features(meta)
+        rec_type, confidence = self._predict(features)
+        rec_name = RECOMMENDATION_TYPES.get(rec_type, "cultural_deep_dive")
+        rec_name_zh = RECOMMENDATION_LABELS_ZH.get(rec_type, "文化深度游")
+
+        itinerary = self._build_itinerary(meta, rec_type)
+
+        days = meta.get("days", 3)
+        num_people = int(meta.get("num_people", 2))
+        city_budget_map = CITY_DAILY_BUDGET.get(meta.get("city", ""), {"低": 400, "中": 900, "高": 2800})
+        budget_per_day_val = city_budget_map.get(meta.get("budget", "中"), 900)
+        total_budget = budget_per_day_val * days * max(1, num_people)
+
+        city = meta.get("city", "")
+        known_cities = ["巴黎", "东京", "纽约", "伦敦", "罗马", "首尔", "迪拜"]
+        city_in_training = city in known_cities
+
+        return {
+            "system": "supervised",
+            "itinerary": itinerary,
+            "output": itinerary,
+            "total_budget_estimate": total_budget,
+            "prediction": rec_type,
+            "recommendation_type": rec_name,
+            "recommendation_type_zh": rec_name_zh,
+            "model_confidence": round(confidence, 2),
+            "features": features,
+            "top_features": self._top_features(3),
+            "model_type": self.model_type,
+            "model_accuracy": round(self.model_accuracy, 4),
+            "dataset_size": self.dataset_size,
+            "metadata": meta,
+            "responsible_ai": {
+                # ── 透明度 / Transparency ────────────────────────────
+                "transparency": (
+                    f"模型置信度 {round(confidence*100)}%；Top-3 特征重要性已暴露，可审查决策依据。"
+                    f"决策路径：{RECOMMENDATION_LABELS_ZH.get(rec_type,'—')} "
+                    f"由 VotingClassifier 软投票（GBT+RF+ExtraTrees）产生。"
+                ),
+                # ── 准确率诚实说明 / Accuracy Honesty Note ───────────
+                "accuracy_note": (
+                    f"测试准确率 {self.model_accuracy:.1%}：数据集包含 15% 随机标签噪声（模拟真实用户偏好不确定性），"
+                    "训练集与测试集均使用同等噪声水平，准确率更接近真实场景性能。"
+                    "标签由专家规则程序生成，训练数据为合成数据，实际部署仍需真实用户反馈验证。"
+                ),
+                # ── 公平性 / Fairness (AOD) ──────────────────────────
+                # 受保护属性①：has_special（特殊需求旅行者：携带儿童/老人/轮椅用户）
+                # 受保护属性②：group_type（家庭出行 vs 其他类型）
+                # 注：budget 为用户主动申报的约束，不属于人口学保护属性，不纳入 AOD 计算
+                "fairness_aod_special":  self.fairness_metrics.get("aod_special", None),
+                "fairness_aod_group":    self.fairness_metrics.get("aod_group_type", None),
+                "fairness_spd_special":  self.fairness_metrics.get("spd_special", None),
+                "fairness_level_special": (
+                    self._aod_level(self.fairness_metrics["aod_special"])
+                    if "aod_special" in self.fairness_metrics else "未计算"
+                ),
+                "fairness_level_group": (
+                    self._aod_level(self.fairness_metrics["aod_group_type"])
+                    if "aod_group_type" in self.fairness_metrics else "未计算"
+                ),
+                "fairness_method": "Average Odds Difference (IBM AIF360 / Hardt et al. 2016)",
+                "fairness_note": (
+                    "AOD = ½×[(FPR_弱势−FPR_优势)+(TPR_弱势−TPR_优势)]。"
+                    "受保护属性①特殊需求（有儿童/老人/轮椅=弱势，无=优势），"
+                    "受保护属性②出行类型（家庭=弱势/非家庭=优势）。"
+                    "|AOD|<0.05 为公平，≥0.10 需介入偏差缓解。"
+                    "预算为用户主动申报的约束条件，不属于公平性保护属性，不纳入计算。"
+                ),
+                # ── 鲁棒性 / Robustness ──────────────────────────────
+                "data_bias": (
+                    "训练数据由程序规则生成（非真实用户行为），存在规则偏差；"
+                    "5% 随机标签噪声已添加增强鲁棒性；集成学习（VotingClassifier）降低单模型过拟合。"
+                ),
+                # ── 问责 / Accountability ───────────────────────────
+                "group_fairness": (
+                    "各出行群体（单人/情侣/朋友/家庭）训练集均等采样（各25%）；"
+                    "AOD①量化特殊需求旅行者（老人/儿童/轮椅）与普通旅行者的推荐机会平等性；"
+                    "AOD②量化家庭出行与其他群体的推荐覆盖差异。"
+                ),
+                "city_coverage_note": (
+                    f"城市'{city}'" +
+                    ("在训练分布内。" if city_in_training else "不在训练城市特征中，城市特征维度均为0，可能影响预测准确性。")
+                ),
+                "city_in_training_distribution": city_in_training,
+                "deterministic": False,
+                "model_version": self.model_type,
+            },
+        }
+
+    def _build_itinerary(self, meta: dict, rec_type: int) -> str:
+        """根据推荐类型生成每日行程，返回 Markdown 格式字符串"""
+        city = meta.get("city", "")
+        days = meta.get("days", 3)
+        budget = meta.get("budget", "中")
+        num_people = int(meta.get("num_people", 2))
+        group = meta.get("group", "朋友")
+        special = meta.get("special", "无")
+        rec_name_zh = RECOMMENDATION_LABELS_ZH.get(rec_type, "文化深度游")
+
+        # 每种推荐类型的活动模板（每个 key 对应一个列表，按天轮换，避免重复）
+        templates = {
+            0: {
+                "overview": "以经济实惠为原则，充分利用免费景点和公共设施，体验城市最真实的日常面貌。",
+                "mornings": [
+                    ("参观免费景点和城市广场", "漫步城市广场，欣赏建筑风貌，感受当地生活气息"),
+                    ("社区公园 / 街道漫步", "走进居民生活区，逛早市、看街头涂鸦，感受城市真实节奏"),
+                    ("城市图书馆 / 公共展览", "就近参观免费公共图书馆或市政展览馆，了解当地人文背景"),
+                    ("免费海滨 / 江滨步道", "沿水岸步道漫行，欣赏自然风光，感受清晨城市的宁静"),
+                    ("城市观景台 / 高地漫步", "前往免费制高点，俯瞰城市全貌，拍摄绝佳风光照"),
+                ],
+                "afternoons": [
+                    ("城市徒步 / 公共博物馆", "步行探索历史街区或参观公共博物馆，深度了解城市文化"),
+                    ("社区集市 / 跳蚤市场", "淘一淘当地二手好物和手工艺品，与摊贩闲聊感受生活气息"),
+                    ("免费美术馆 / 文化中心", "欣赏免费对外开放的当代艺术展，票价为零、收获满满"),
+                    ("城市街头艺术 / 涂鸦墙", "按图索骥探索城市街头艺术区，拍照打卡，解码城市个性"),
+                    ("公共交通换乘游览", "乘坐当地公交/有轨电车打卡沿途景点，性价比最高的城市游览方式"),
+                ],
+                "evenings": ["街头小吃 / 夜市", "夜间免费音乐表演广场", "夜间步行老城区", "江/海边夜景散步", "当地居民常去的社区酒馆"],
+                "lunches": [
+                    ("当地平价餐馆或市场小吃", "选择本地人聚集的平价馆子，性价比极高"),
+                    ("便利店 / 超市熟食", "体验当地便利店文化，超市熟食区往往藏有高品质本地特产"),
+                    ("路边摊炒菜套餐", "跟着当地上班族排队，两三道菜加主食，饱腹又经济"),
+                    ("菜市场内小馆", "在菜市场二楼或内场寻觅小餐馆，原材料新鲜、价格亲民"),
+                    ("学生街 / 背包客区餐厅", "背包客聚集地往往有全城最划算的用餐选择，信息量超大"),
+                ],
+            },
+            1: {
+                "overview": "以文化深度体验为核心，博物馆、历史街区、传统表演一样不少，带你真正读懂这座城市。",
+                "mornings": [
+                    ("国家级博物馆深度参观", "提前在官网预约，建议9:00开馆即入场，留足2-3小时细品馆藏精华"),
+                    ("当代美术馆 / 艺术中心", "欣赏城市最具活力的当代艺术创作，感受本地艺术生态"),
+                    ("历史宫殿 / 古城堡参观", "深入皇室或贵族历史遗存，跟随音频导览穿越时间长廊"),
+                    ("传统手工艺工坊体验", "亲手参与陶瓷、织物或传统食品制作，带走独一无二的纪念品"),
+                    ("地方文化博物馆", "聚焦城市地方史的小型博物馆，往往比大馆更有惊喜和深度"),
+                ],
+                "afternoons": [
+                    ("历史街区徒步 / 文化体验", "跟随专业导览或自助地图，穿越历史街区，探寻城市记忆"),
+                    ("传统表演 / 音乐会", "欣赏当地剧场的传统戏剧或民俗音乐演出，沉浸感十足"),
+                    ("宗教建筑 / 圣地参观", "走进大教堂、清真寺或古寺庙，感受信仰与建筑之美"),
+                    ("古旧书市 / 文化商业街", "在旧书摊和文化商店淘宝，探寻城市的文字与精神积淀"),
+                    ("城市历史图书馆 / 档案馆", "参观地标性历史建筑内的图书馆，探索知识与建筑的双重魅力"),
+                ],
+                "evenings": ["当地传统餐厅用餐", "传统民俗表演 + 晚餐套餐", "城市历史街区夜游", "古典音乐 / 爵士酒吧", "老字号酒馆文化夜话"],
+                "lunches": [
+                    ("传统风味午餐", "选择当地口碑老店，品尝最正宗的地方风味"),
+                    ("博物馆内餐厅 / 咖啡馆", "许多博物馆餐厅提供精致套餐，在艺术氛围中享用午餐"),
+                    ("文化街区特色小馆", "挑一家装潢有故事的街区小馆，边用餐边感受城市历史"),
+                    ("历史市场美食摊位", "逛古老食品市场，现点现做地道美食，是了解当地饮食文化最直接的方式"),
+                    ("当地学者 / 作家常去的咖啡馆", "坐在充满人文气息的老咖啡馆里，用一份套餐开启下午的文化探索"),
+                ],
+            },
+            2: {
+                "overview": "奢华体验之旅，从精品酒店到米其林餐厅，每一处都是精心之选，让旅途成为难忘的高端享受。",
+                "mornings": [
+                    ("精品酒店 SPA 体验", "享受精品酒店的顶级服务，预约专属 SPA 套餐（建议提前1周预订）"),
+                    ("私人直升机 / 游艇观光", "俯瞰城市或游览水岸，以最奢华的视角解锁城市之美"),
+                    ("高端美食工作坊", "向米其林星级厨师学习烹饪技艺，带走一份专属食谱与美好记忆"),
+                    ("私人博物馆 VIP 参观", "预约私人导览，在无人打扰的环境中欣赏顶级艺术珍品"),
+                    ("城市高端高尔夫 / 网球俱乐部", "在奢华运动俱乐部开启美好清晨，配套设施一流"),
+                ],
+                "afternoons": [
+                    ("奢侈品购物 / 私人购物顾问", "在顶级购物街探索国际大牌，可预约私人购物顾问服务"),
+                    ("高端温泉 / 疗愈中心", "沉浸在五星级水疗设施中，彻底放松身心，焕然一新"),
+                    ("私人城市专车导览", "定制专属路线，让私人司机和导游带你探索城市隐秘角落"),
+                    ("精品酒庄 / 茶道 / 高端品鉴会", "参加专业品鉴活动，深度感受当地顶级风土与工艺"),
+                    ("高端会员俱乐部 / 屋顶泳池", "在俯瞰城市的无边泳池悠然享受午后阳光"),
+                ],
+                "evenings": ["米其林餐厅 / 景观餐厅晚宴", "豪华游船私人晚宴", "城市顶级屋顶酒吧鸡尾酒会", "歌剧 / 交响乐专场", "私人宴会厅套房夜宴"],
+                "lunches": [
+                    ("高端商务午餐", "于景观餐厅享用精致午餐，欣赏城市全景"),
+                    ("米其林推荐午市套餐", "米其林午市套餐比晚市性价比高许多，同等品质更实惠"),
+                    ("精品酒店私人泳池畔午餐", "悠享泳池边的精致轻食服务，奢华午后从这里开始"),
+                    ("高端海鲜 / 牛排馆午市", "预约城市最负盛名的海鲜楼或牛排馆午市，品质与服务无可挑剔"),
+                    ("私人厨师定制午餐", "在高端民宿或精品酒店预约私厨，享受量身定制的美食体验"),
+                ],
+            },
+            3: {
+                "overview": "专为家庭出行打造，寓教于乐，亲子互动项目丰富，节奏舒适，让大小朋友都玩得尽兴、住得安心。",
+                "mornings": [
+                    ("儿童友好科学博物馆", "选择有互动展区的科学馆，激发孩子好奇心（注意儿童票价优惠及免费年龄段）"),
+                    ("动物园 / 水族馆", "带孩子近距离认识动植物，寓教于乐，家长小孩都能享受"),
+                    ("儿童主题乐园半日游", "趁上午人少进园，玩遍热门项目，避开下午高峰人流"),
+                    ("家庭烹饪 / 手工课体验", "亲子一起参加本地特色手工或烹饪课，留下合作制作的独特纪念品"),
+                    ("城市自然历史博物馆", "走进自然博物馆探索恐龙化石与自然奥秘，孩子眼里充满好奇"),
+                ],
+                "afternoons": [
+                    ("城市公园 / 亲子骑行", "在宽阔公园自由玩耍，可选择亲子骑行、野餐或小型游乐设施，注意防晒补水"),
+                    ("水上乐园 / 游泳馆", "孩子们的最爱！选择安全规范的水上设施，家长休息孩子尽情玩"),
+                    ("农场 / 采摘体验", "城郊农场采摘应季水果，接触大自然，让孩子了解食物的来源"),
+                    ("少儿剧场 / 木偶戏", "当地专为儿童设计的表演节目，互动性强，孩子全程参与其中"),
+                    ("沙滩 / 湖边亲水活动", "家庭戏水放松，带上遮阳帽和防晒霜，让孩子在大自然中撒欢"),
+                ],
+                "evenings": ["家庭餐厅 / 轻松娱乐活动", "亲子冰淇淋 / 甜品探店", "城市夜间动物园（开放时）", "户外电影放映会", "家庭桌游咖啡馆"],
+                "lunches": [
+                    ("儿童友好家庭餐厅", "选择提供儿童套餐、高脚椅和涂色纸的家庭友好餐厅"),
+                    ("公园野餐便当", "在超市采购食材，带上野餐垫在公园草坪享用，孩子们最喜欢"),
+                    ("主题餐厅 / 角色扮演餐厅", "让孩子在有趣主题环境中用餐，吃饭也是一场冒险"),
+                    ("儿童友好海鲜 / 本地特色馆", "选择可以让孩子亲眼看到食材的餐馆，激发好奇心和食欲"),
+                    ("面包房 / 甜品工坊自助午餐", "亲子一起挑选糕点，坐在窗边悠然用餐，简单而幸福"),
+                ],
+            },
+            4: {
+                "overview": "吃货与购物爱好者的天堂之旅，从清晨早市到深夜夜市，用味蕾和购物袋丈量这座城市的魅力。",
+                "mornings": [
+                    ("当地特色早市 / 早餐探店", "赶早市是感受当地饮食文化的最佳方式，网红早餐店建议8:00前到达"),
+                    ("精品咖啡街区 / 手冲咖啡体验", "在精品咖啡馆与咖啡师聊聊当地咖啡文化，品一杯匠心手冲"),
+                    ("本地有机农夫市集", "周末农夫集市是寻找本地食材和手工制品的宝藏之地"),
+                    ("网红烘焙坊 / 甜品工坊早餐", "打卡城市知名烘焙名店，品尝限定口味糕点，元气满满开启一天"),
+                    ("渔港 / 码头早市海鲜", "清晨码头最新鲜的海鲜直接上桌，是当地人才知道的隐藏美食地图"),
+                ],
+                "afternoons": [
+                    ("美食市场 / 特色购物街区", "穿越特色美食市场和购物街，边走边尝，带走心仪伴手礼"),
+                    ("当地百货 / 设计师集合店", "逛本地特色百货和设计师品牌，挖掘独一无二的本土好物"),
+                    ("手工艺品市集 / 创意街区", "寻找本地匠人手作，每一件都是承载城市文化的独特纪念品"),
+                    ("传统食品工厂 / 调味料市场", "探访老字号食品工厂或香料集市，用嗅觉和味觉深度了解当地饮食"),
+                    ("街头美食巡游", "按照美食博主地图，徒步打卡数家高口碑街头小吃，满足感爆棚"),
+                ],
+                "evenings": ["网红餐厅 / 夜市美食体验", "当地特色酒吧配本地啤酒", "深夜食堂 / 宵夜文化体验", "高端海鲜楼 / 烤肉晚宴", "夜市购物 + 边走边吃"],
+                "lunches": [
+                    ("市场小吃拼盘", "在美食市场集中品尝多种特色小吃，性价比最高的午餐方式"),
+                    ("当地老字号名菜馆", "预约一家百年老字号，品尝最有历史积淀的招牌菜"),
+                    ("创意料理 / 融合餐厅", "体验将本地食材与国际烹饪技法结合的创意美食，味觉新探索"),
+                    ("路边车仔档 / 小吃一条街", "深入当地人的街巷，找到那家只有本地人知道的绝味小吃"),
+                    ("美食商场顶层 / 美食广场", "一站式品尝多家风味，效率最高的美食探索方式"),
+                ],
+            },
+            5: {
+                "overview": "户外探险者的专属行程，徒步、骑行、皮划艇……大自然是最好的舞台，挑战自我，释放活力。",
+                "mornings": [
+                    ("国家公园 / 自然保护区晨跑徒步", "清晨出发，享受最清新的空气和最少的人流，建议携带足够饮水"),
+                    ("山地骑行 / 城市骑行探索", "租一辆自行车，按照骑行地图解锁城市郊野风光"),
+                    ("海上皮划艇 / 独木舟", "在专业教练陪同下挑战皮划艇，感受海浪或河流的自然力量"),
+                    ("攀岩 / 高空缆车体验", "挑战户外攀岩墙或自然岩壁，突破自我，俯瞰壮美风光"),
+                    ("热气球 / 滑翔伞体验", "在专业团队安全保障下体验高空俯瞰，一生难忘的视角"),
+                ],
+                "afternoons": [
+                    ("户外探险活动（攀岩/骑行/皮划艇）", "选择当地口碑好的户外运动服务商，安全装备齐全，教练全程陪同"),
+                    ("溯溪 / 丛林穿越", "在专业向导带领下探索原始溪谷或丛林，充满挑战与惊喜"),
+                    ("冲浪 / 风筝冲浪入门体验", "在当地冲浪学校参加2小时体验课，挑战站上浪板的激动时刻"),
+                    ("雪地徒步 / 越野滑雪（适合季节）", "穿上雪地装备深入白色世界，体验纯粹的冬季户外运动"),
+                    ("定向越野 / 城市探险游戏", "参与专业机构组织的城市或野外定向越野，团队协作、激动人心"),
+                ],
+                "evenings": ["营地篝火 / 星空观测", "户外电影 / 帐篷露营体验", "山顶日落观赏 + 简餐", "当地运动酒吧看球赛", "户外温泉 / 泡汤放松"],
+                "lunches": [
+                    ("户外能量补给 / 三明治", "自带三明治、能量棒，或就近选择自然区域内的简餐服务"),
+                    ("登山小屋 / 山间木屋午餐", "户外运动后在山间小屋补充能量，简单美味，风景绝佳"),
+                    ("海边 / 湖边野餐", "自带食材在绝美自然风光中野餐，是户外旅途的完美中场休息"),
+                    ("当地运动员聚集餐厅", "补充碳水和蛋白质为下午活动续能，运动员常去的馆子料足价实"),
+                    ("营地便携炉具自炊", "使用便携装备自炊，体验户外烹饪乐趣，这本身就是一种冒险"),
+                ],
+            },
+            6: {
+                "overview": "为情侣量身定制的浪漫行程，精品住宿、双人 SPA、烛光晚餐，每一刻都是专属于你们的甜蜜记忆。",
+                "mornings": [
+                    ("精品民宿慢醒 / 浪漫早餐", "赖床到9点，享受精品民宿的精致早餐，慢下来感受两人世界"),
+                    ("花卉市场 / 公园晨间散步", "手牵手逛花卉市场，挑一束应季鲜花，漫步在晨光公园中"),
+                    ("双人陶艺 / 手作课", "一起参加双人手工课，合力制作专属纪念品，满满的参与感和成就感"),
+                    ("浪漫观景台 / 海湾日出", "清晨赶赴制高点，共同迎接第一缕阳光，留下最美的双人剪影"),
+                    ("精品温泉 / 双人护理早场", "在宁静清晨享受专业双人水疗护理，轻松开启甜蜜一天"),
+                ],
+                "afternoons": [
+                    ("双人 SPA / 游船观光", "预约双人 SPA 套餐（建议提前2天预约），或乘坐游船欣赏城市水岸风光"),
+                    ("当地特色博物馆 / 美术馆", "在艺术氛围中携手欣赏珍品，互相分享各自的审美与感受"),
+                    ("骑行 / 电动车双人漫游", "租借双人自行车或电动车，自由穿梭城市街巷，随停随拍"),
+                    ("电影或剧场日场", "两人携手走进当地影院或小剧场，相互依偎享受共同的故事"),
+                    ("私房花园 / 庄园茶歇", "在清幽私房花园或庄园咖啡馆享受下午茶，氛围浪漫又私密"),
+                ],
+                "evenings": ["烛光晚餐 / 城市夜景观赏", "浪漫游船晚宴", "屋顶鸡尾酒会看日落", "小剧场或音乐会 + 宵夜", "夜间摩天轮 / 观景台双人专属时光"],
+                "lunches": [
+                    ("浪漫格调午餐", "选择装潢精致、氛围私密的小餐馆，推荐阳台或窗边座位"),
+                    ("网红咖啡馆双人套餐", "打卡城市最美咖啡馆，拍一组精美照片留存甜蜜记忆"),
+                    ("景观餐厅海景 / 山景午餐", "在绝佳视角享用午餐，让风景成为最浪漫的背景"),
+                    ("隐秘庭院小馆", "探访藏在胡同或巷弄里的私房餐厅，安静优雅，只属于你们"),
+                    ("双人甜品下午茶", "在优雅茶馆品尝精致甜点和茶饮，度过慵懒又甜蜜的午后时光"),
+                ],
+            },
+            7: {
+                "overview": "专为团队出行设计，从破冰游戏到集体晚宴，活动丰富多样，凝聚团队默契，共创美好回忆。",
+                "mornings": [
+                    ("城市定向越野 / 团队破冰", "城市定向越野是团队出行的绝佳破冰项目，可提前联系当地旅行社定制方案"),
+                    ("团队运动 / 沙滩排球", "在开阔户外场地组织团队运动，促进协作精神，欢声笑语不断"),
+                    ("团队文化参观 / 导览游", "集体参加专业导览，统一了解目的地历史，团队知识储备齐头并进"),
+                    ("逃脱室 / 团队解谜游戏", "沉浸式团队解谜挑战，考验默契与智慧，激发集体创造力"),
+                    ("团队早间瑜伽 / 冥想课", "由专业教练带领全员户外晨练，以平和、专注的状态开启新一天"),
+                ],
+                "afternoons": [
+                    ("集体文化工坊 / DIY 课", "参加陶艺、烹饪或传统工艺 DIY 课程，全员参与，共同留下手作纪念品"),
+                    ("城市观光大巴 / 游船集体游", "包下游览车或游船，笑谈间完成高效全景观光"),
+                    ("团队烹饪挑战赛", "分组竞赛烹制当地特色菜，趣味十足，最终集体享用成果"),
+                    ("集体购物 / 市集淘宝", "组队逛市集，互相帮忙挑选伴手礼，团购还可享折扣"),
+                    ("户外团建拓展 / 卡丁车", "挑战专业拓展项目或卡丁车竞速，释放压力、增进情谊"),
+                ],
+                "evenings": ["酒吧 / 音乐现场 + 团队聚餐", "包场 KTV / 娱乐中心夜场", "团队篝火晚会", "当地特色大排档集体宵夜", "屋顶派对 + 城市夜景"],
+                "lunches": [
+                    ("团队包餐 / 大桌聚餐", "提前预订可容纳全团的包间，推荐当地特色菜系套餐"),
+                    ("自助餐 / 烤肉团队聚餐", "烤肉或自助形式最适合多人用餐，随意取用、气氛热烈"),
+                    ("当地特色团餐", "联系餐厅预定特色团体套餐，地道风味满足所有人"),
+                    ("户外野餐 + 团队游戏", "在公园草地集体野餐，趁着午饭间隙来一轮飞盘或接力赛"),
+                    ("街边美食大赏 + 分享分享", "分几组分头觅食，各自打卡不同小吃后汇合分享，乐趣翻倍"),
+                ],
+            },
+        }
+        tmpl = templates.get(rec_type, templates[1])
+        cost = {"低": (60, 80, 100), "中": (180, 220, 280), "高": (500, 600, 800)}.get(budget, (180, 220, 280))
+
+        # 预算明细估算
+        budget_per_day = CITY_DAILY_BUDGET.get(city, {"低": 400, "中": 900, "高": 2800}).get(budget, 900)
+        flight_cost = {"低": 3000, "中": 6000, "高": 18000}.get(budget, 6000) * num_people
+        hotel_cost = int(budget_per_day * 0.4) * days * num_people
+        food_cost = int(budget_per_day * 0.3) * days * num_people
+        attraction_cost = int(budget_per_day * 0.2) * days * num_people
+        total = flight_cost + hotel_cost + food_cost + attraction_cost
+
+        # 人员说明
+        special_note = f"（{special}）" if special and special != "无" else ""
+
+        # 构建 Markdown
+        md_lines = [
+            f"# {city} {days}日行程 · {rec_name_zh}",
+            "",
+            "## 行程概览",
+            tmpl["overview"],
+            f"本次行程为 **{num_people}人{group}出行{special_note}**，预算档次：**{budget}**，推荐旅行类型：**{rec_name_zh}**（模型置信度参见下方）。",
+            "",
+            "---",
+            "",
+        ]
+
+        for day in range(1, days + 1):
+            # 每天的主题微调
+            day_moods = [
+                "开启旅程，感受城市第一印象",
+                "深入探索，发现隐藏的城市角落",
+                "慢下来，用心感受当地生活节奏",
+                "打卡必游地标，留下难忘照片",
+                "自由时间，随心而行",
+                "临别前的最后冲刺，不留遗憾",
+                "圆满收尾，满载而归",
+            ]
+            mood = day_moods[(day - 1) % len(day_moods)]
+
+            # 按天轮换活动（mornings/afternoons/evenings/lunches 均为列表）
+            idx = (day - 1) % len(tmpl["mornings"])
+            morning_act, morning_detail = tmpl["mornings"][idx]
+            idx_a = (day - 1) % len(tmpl["afternoons"])
+            afternoon_act, afternoon_detail = tmpl["afternoons"][idx_a]
+            idx_e = (day - 1) % len(tmpl["evenings"])
+            evening_act = tmpl["evenings"][idx_e]
+            idx_l = (day - 1) % len(tmpl["lunches"])
+            lunch_act, lunch_detail = tmpl["lunches"][idx_l]
+
+            # 特殊需求提示
+            special_tip = ""
+            if special == "有儿童":
+                special_tip = "\n> 🧒 **亲子提示**：景区设有儿童互动区，注意确认儿童票价；避免连续游览超过1小时，适时安排休息补水。"
+            elif special == "有老人":
+                special_tip = "\n> 👴 **老人关怀**：请确认景区无障碍通道，全天行程节奏放缓，每1-2小时安排休息，避免长时间暴晒或严寒环境。"
+
+            day_section = [
+                f"## 第{day}天：{city} · {rec_name_zh} Day {day}",
+                f"> {mood}",
+                "",
+                "**上午**  ",
+                f"{morning_detail}（参考费用：¥{cost[0]}，建议 3 小时）",
+                f"- 活动：**{morning_act}**",
+            ]
+            if special_tip:
+                day_section.append(special_tip)
+            day_section += [
+                "",
+                "**午餐推荐**  ",
+                f"**{lunch_act}** — {lunch_detail}，人均约 ¥{cost[2]}",
+                "",
+                "**下午**  ",
+                f"{afternoon_detail}（参考费用：¥{cost[1]}，建议 3 小时）",
+                f"- 活动：**{afternoon_act}**",
+                "",
+                "**晚餐 & 夜间**  ",
+                f"**{evening_act}** — 晚餐人均约 ¥{cost[2] + 20}，饭后可在周边漫步感受城市夜晚魅力。",
+                "",
+                "---",
+                "",
+            ]
+            md_lines.extend(day_section)
+
+        # 住宿建议
+        hotel_suggestions = {
+            "低": f"推荐青旅或经济型连锁酒店，{city}市中心附近，交通便利，人均约 ¥{int(budget_per_day*0.4)}/晚",
+            "中": f"推荐三至四星品牌酒店，靠近主要景区，设施齐全，人均约 ¥{int(budget_per_day*0.6)}/晚",
+            "高": f"推荐五星酒店或精品设计酒店，{city}核心地带，顶级服务，人均约 ¥{int(budget_per_day*1.2)}/晚",
+        }.get(budget, f"{city}标准酒店")
+
+        md_lines += [
+            "## 住宿建议",
+            hotel_suggestions,
+            "",
+            f"## 预算参考（{num_people}人，{days}天）",
+            f"- 交通：¥{flight_cost:,}",
+            f"- 住宿（{days}晚）：¥{hotel_cost:,}",
+            f"- 餐饮：¥{food_cost:,}",
+            f"- 景点：¥{attraction_cost:,}",
+            f"- **合计约：¥{total:,}**",
+        ]
+
+        return "\n".join(md_lines)
+
+
+_engine: SupervisedEngine | None = None
+
+def generate(test_case: dict) -> dict:
+    """生成行程（供统一接口调用）"""
+    global _engine
+    if _engine is None:
+        _engine = SupervisedEngine()
+    return _engine.generate_itinerary(test_case)
+
+
+if __name__ == "__main__":
+    test_case = {
+        "id": "TEST_002",
+        "input": "我想去东京玩3天，和家人一起，我们喜欢自然、美食，预算中等，有儿童。",
+        "metadata": {
+            "city": "东京", "days": 3, "budget": "中",
+            "interests": ["自然", "美食"], "group": "家庭",
+            "num_people": 4, "travel_mode": "飞机", "special": "有儿童",
+        },
+    }
+    result = generate(test_case)
+    print(f"推荐类型：{result['recommendation_type_zh']} (置信度: {result['model_confidence']:.0%})")
+    print(f"Top特征：{result['top_features']}")
+    print(json.dumps(result["itinerary"], ensure_ascii=False, indent=2))
