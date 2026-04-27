@@ -51,7 +51,6 @@ class ItineraryEvaluator:
 
         # 评估每个维度
         results["dimension_scores"]["user_experience"] = self._evaluate_user_experience(outputs)
-        results["dimension_scores"]["fairness"] = self._evaluate_fairness(outputs)
         results["dimension_scores"]["accountability"] = self._evaluate_accountability(system_name)
         results["dimension_scores"]["transparency"] = self._evaluate_transparency(system_name)
         results["dimension_scores"]["robustness"] = self._evaluate_robustness(outputs)
@@ -92,47 +91,6 @@ class ItineraryEvaluator:
         # 这里可以根据实际的输入形式评估
         # 目前使用模拟数据
         return 0.75
-
-    def _evaluate_fairness(self, outputs: List[Dict]) -> Dict[str, Any]:
-        """评估公平性维度"""
-        # 按不同维度分组评估
-        budget_groups = {"低": [], "中": [], "高": []}
-        interest_groups = {"文化": [], "自然": [], "美食": [], "购物": [], "历史": []}
-
-        for i, output in enumerate(outputs):
-            test_case = self.test_cases[i]
-            meta = test_case["metadata"]
-
-            # 按预算分组（处理未知值）
-            budget = meta.get("budget", "中")
-            if budget not in budget_groups:
-                budget = "中"  # 默认归为中等预算
-            budget_groups[budget].append(output)
-
-            # 按兴趣分组（处理未知值）
-            interests = meta.get("interests", [])
-            for interest in interests:
-                if interest in interest_groups:
-                    interest_groups[interest].append(output)
-
-        # 计算各组的质量差异
-        budget_variance = self._calculate_group_variance(budget_groups)
-        interest_variance = self._calculate_group_variance(interest_groups)
-
-        return {
-            "average_score": 1.0 - (budget_variance + interest_variance) / 2,
-            "details": {
-                "budget_fairness": 1.0 - budget_variance,
-                "interest_fairness": 1.0 - interest_variance,
-                "group_size_fairness": 0.85  # 模拟数据
-            }
-        }
-
-    def _calculate_group_variance(self, groups: Dict[str, List]) -> float:
-        """计算组间差异（简化版）"""
-        # 在实际实现中，这里应该计算各组质量的统计差异
-        # 目前使用模拟数据
-        return 0.15
 
     def _evaluate_accountability(self, system_name: str) -> Dict[str, Any]:
         """评估问责性维度"""
@@ -234,11 +192,10 @@ class ItineraryEvaluator:
         """计算综合评分"""
         # 权重：用户体验20%，公平性25%，问责性20%，透明度20%，鲁棒性15%
         weights = {
-            "user_experience": 0.20,
-            "fairness": 0.25,
-            "accountability": 0.20,
-            "transparency": 0.20,
-            "robustness": 0.15
+            "user_experience": 0.25,
+            "accountability": 0.25,
+            "transparency": 0.25,
+            "robustness": 0.25
         }
 
         total_score = 0
@@ -268,8 +225,8 @@ class ItineraryEvaluator:
 
         # 生成评分表格
         report.append("## 综合评分对比\n")
-        report.append("| 系统 | 综合评分 | 用户体验 | 公平性 | 问责性 | 透明度 | 鲁棒性 |\n")
-        report.append("|------|----------|----------|--------|--------|--------|--------|\n")
+        report.append("| 系统 | 综合评分 | 用户体验 | 问责性 | 透明度 | 鲁棒性 |\n")
+        report.append("|------|----------|----------|--------|--------|--------|\n")
 
         for result in system_results:
             system_name = result["system_name"]
@@ -285,10 +242,9 @@ class ItineraryEvaluator:
         # 详细分析
         report.append("\n## 各维度详细分析\n")
 
-        dimensions = ["user_experience", "fairness", "accountability", "transparency", "robustness"]
+        dimensions = ["user_experience", "accountability", "transparency", "robustness"]
         dim_names = {
             "user_experience": "用户体验",
-            "fairness": "公平性",
             "accountability": "问责性",
             "transparency": "透明度与可解释性",
             "robustness": "鲁棒性"
@@ -303,9 +259,6 @@ class ItineraryEvaluator:
                 report.append("- 输入便利性：用户需要提供多少结构化信息？\n")
                 report.append("- 输出质量：行程的实用性和吸引力\n")
                 report.append("- 响应速度：系统生成行程的时间\n")
-            elif dim == "fairness":
-                report.append("- 系统是否对不同用户群体提供同等质量的服务？\n")
-                report.append("- 是否存在系统性的偏见？\n")
             elif dim == "accountability":
                 report.append("- 如果推荐的行程出现问题，责任由谁承担？\n")
                 report.append("- 是否可以追溯决策过程？\n")
@@ -341,10 +294,9 @@ class ItineraryEvaluator:
 
         report.append("### 核心发现\n")
         report.append("1. **用户体验**: 目标AI系统最佳，但缺乏控制和解释\n")
-        report.append("2. **公平性**: 规则系统最可控，监督学习取决于数据\n")
-        report.append("3. **问责性**: 规则系统责任明确，AI系统责任模糊\n")
-        report.append("4. **透明度**: 规则系统完全透明，AI系统是黑盒\n")
-        report.append("5. **鲁棒性**: 各有优劣，需根据应用场景选择\n\n")
+        report.append("2. **问责性**: 规则系统责任明确，AI系统责任模糊\n")
+        report.append("3. **透明度**: 规则系统完全透明，AI系统是黑盒\n")
+        report.append("4. **鲁棒性**: 各有优劣，需根据应用场景选择\n\n")
 
         report.append("### 推荐方案\n")
         report.append("**混合架构**:\n")

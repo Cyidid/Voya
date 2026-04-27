@@ -514,7 +514,6 @@ async def generate_itinerary(req: TravelRequest):
             "processing_time": result.get("processing_time", 0),
             "token_estimate": result.get("token_estimate", len(formatted) // 2),
             "metadata": meta,
-            "responsible_ai": result.get("responsible_ai", {}),
         }
 
         # ── Agent 专属字段（按类型精简，减少无关字段传输）──────────
@@ -604,7 +603,6 @@ async def generate_stream(req: TravelRequest):
                 "transport_tip_en": result.get("transport_tip_en", result.get("transport_tip", "")),
                 "city_tips_en": result.get("city_tips_en", result.get("city_tips", [])),
                 "total_budget_estimate": result.get("total_budget_estimate"),
-                "responsible_ai": result.get("responsible_ai", {}),
             }
         except Exception as e:
             async def err_shot():

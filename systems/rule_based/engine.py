@@ -763,13 +763,6 @@ class RuleBasedEngine:
             "transport_tip_en": RULES_EN.get(city_key, {}).get("transport", city_rules.get("transport", "")),
             "city_tips_en": RULES_EN.get(city_key, {}).get("tips", city_rules.get("tips", [])),
             "weather_note": weather_note,
-            "responsible_ai": {
-                "transparency": "完全可解释：每条推荐均可追溯至规则库中的具体条目",
-                "fairness_warning": (f"城市覆盖限于18个热门目的地；输入城市'{city_raw}'不在规则库中，已回退至'{city_key}'" if city_fallback else f"城市'{city_key}'在规则库覆盖范围内"),
-                "coverage_gap": city_fallback,
-                "deterministic": True,
-                "data_source": "人工专家编写规则库，存在专家主观偏差",
-            },
         }
         if origin:
             result["origin"] = origin

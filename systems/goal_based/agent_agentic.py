@@ -454,15 +454,6 @@ class TravelPlanningAgent:
             "using_real_llm": True,
             "cache_hit": False,
             "response_time": processing_time,
-            "responsible_ai": {
-                "transparency": f"Agent 执行 {tool_rounds} 轮工具调用；决策轨迹完整记录于 agent_steps，可供审查",
-                "tools_used": list(set(tool_types)),
-                "non_deterministic": True,
-                "hallucination_risk": "LLM 可能生成未经核实的景点/价格信息，建议出行前自行验证",
-                "data_sources": [s for s in (["Tavily 实时网络搜索"] if "search_web" in tool_types else []) + (["ChromaDB 本地知识库"] if "query_knowledge_base" in tool_types else []) + [f"LLM 参数知识（{self.model_name}）"]],
-                "cultural_bias": "LLM 训练数据可能对不同地区/文化存在覆盖不均的偏差",
-                "accountability": "责任归属：AI 生成内容仅供参考，用户需自行判断并承担最终决策责任",
-            },
         }
 
         if use_cache:

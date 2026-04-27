@@ -240,7 +240,6 @@ class SupervisedEngine:
         self.dataset_size = 10000
         self.model_accuracy = 0.0
         self.feature_importances: dict = {}
-        self.fairness_metrics: dict = {}   # AOD / SPD 公平性指标
         self._load_or_train()
 
     def _load_or_train(self):
@@ -259,7 +258,6 @@ class SupervisedEngine:
                 self.feature_importances = saved["feature_importances"]
                 self.model_accuracy = saved["accuracy"]
                 self.dataset_size = saved.get("dataset_size", self.dataset_size)
-                self.fairness_metrics = saved.get("fairness_metrics", {})
                 logger.info(f"监督学习模型已加载 (训练集: {self.dataset_size} 条, "
                       f"准确率: {self.model_accuracy:.1%})")
                 return
@@ -326,14 +324,8 @@ class SupervisedEngine:
         fi_avg = (fi_gbt + fi_rf + fi_et) / 3.0
         self.feature_importances = dict(zip(FEATURE_NAMES, fi_avg))
 
-        # ── 计算公平性指标（AOD / SPD） ──────────────────────────
-        y_pred = self.model.predict(X_test)
-        self.fairness_metrics = self._compute_fairness(X_test, y_test, y_pred)
-
         logger.info(f"训练完成 - 准确率: {self.model_accuracy:.1%}")
         logger.info(f"Top-3 重要特征: {self._top_features(3)}")
-        logger.info(f"公平性 AOD(特殊需求): {self.fairness_metrics.get('aod_special', 0.0):.4f}  "
-                    f"AOD(出行类型): {self.fairness_metrics.get('aod_group_type', 0.0):.4f}")
 
         # 保存模型
         try:
@@ -344,113 +336,10 @@ class SupervisedEngine:
                     "feature_importances": self.feature_importances,
                     "accuracy": self.model_accuracy,
                     "dataset_size": self.dataset_size,
-                    "fairness_metrics": self.fairness_metrics,
                 }, f)
             logger.info(f"模型已保存: {MODEL_PATH}")
         except Exception as e:
             logger.warning(f"保存模型失败: {e}")
-
-    # ── 公平性指标计算 ────────────────────────────────────────
-
-    @staticmethod
-    def _tpr_fpr(mask: np.ndarray, y_true_bin: np.ndarray, y_pred_bin: np.ndarray):
-        """计算某子群体的 TPR 和 FPR"""
-        yt = y_true_bin[mask]
-        yp = y_pred_bin[mask]
-        tp = int(((yt == 1) & (yp == 1)).sum())
-        fn = int(((yt == 1) & (yp == 0)).sum())
-        fp = int(((yt == 0) & (yp == 1)).sum())
-        tn = int(((yt == 0) & (yp == 0)).sum())
-        tpr = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-        fpr = fp / (fp + tn) if (fp + tn) > 0 else 0.0
-        return round(tpr, 4), round(fpr, 4)
-
-    def _compute_fairness(
-        self,
-        X_test: np.ndarray,
-        y_test: np.ndarray,
-        y_pred: np.ndarray,
-    ) -> dict:
-        """
-        计算 Average Odds Difference（AOD）和 Statistical Parity Difference（SPD）。
-
-        参考：IBM AIF360 / Hardt et al. 2016
-        AOD = ½ × [(FPR_unpriv − FPR_priv) + (TPR_unpriv − TPR_priv)]
-        SPD = P(ŷ=1 | unpriv) − P(ŷ=1 | priv)
-        AOD=0 / SPD=0 → 完全公平；|AOD|<0.05 → 可接受
-
-        受保护属性1: has_special（特殊需求旅行者）
-            1 = 有特殊需求（携带儿童/老人/轮椅用户）= 弱势群体
-            0 = 无特殊需求 = 基准群体
-            理由：特殊需求旅行者通常在活动覆盖面、景点可达性上处于不利地位，
-                  属于旅行场景中有意义的可访问性保护属性，与用户主动申报的预算不同，
-                  老人/残障/婴儿等需求往往非用户主动选择。
-
-        受保护属性2: group_type（出行类型）
-            3(家庭) = 弱势群体，其他(单人/情侣/朋友) = 优势群体
-            理由：家庭出行（尤其携带未成年人）在推荐多样性上可能受限。
-
-        有利结果（favorable label）: 预测不为经济观光(label ≠ 0)，即获得有品质的旅行推荐。
-        注：budget 为用户主动申报的约束条件，不属于人口学保护属性，不纳入 AOD 计算。
-        """
-        out: dict = {}
-
-        # 有利输出二值化：非"经济观光"即为 favorable
-        y_test_bin = (y_test != 0).astype(int)
-        y_pred_bin = (y_pred != 0).astype(int)
-
-        # ── 受保护属性1: has_special（特殊需求 / 可访问性）────────────
-        special_col  = FEATURE_NAMES.index("has_special")
-        svals = X_test[:, special_col]
-        mask_special    = (svals == 1)   # 有特殊需求 = 弱势群体（unprivileged）
-        mask_no_special = (svals == 0)   # 无特殊需求 = 基准群体（privileged）
-
-        if mask_special.sum() > 0 and mask_no_special.sum() > 0:
-            tpr_sp,  fpr_sp  = self._tpr_fpr(mask_special,    y_test_bin, y_pred_bin)
-            tpr_nsp, fpr_nsp = self._tpr_fpr(mask_no_special, y_test_bin, y_pred_bin)
-            aod_s = 0.5 * ((fpr_sp - fpr_nsp) + (tpr_sp - tpr_nsp))
-            spd_s = (y_pred_bin[mask_special].mean() - y_pred_bin[mask_no_special].mean())
-            out["aod_special"]         = round(float(aod_s), 4)
-            out["spd_special"]         = round(float(spd_s), 4)
-            out["tpr_special"]         = tpr_sp
-            out["fpr_special"]         = fpr_sp
-            out["tpr_no_special"]      = tpr_nsp
-            out["fpr_no_special"]      = fpr_nsp
-            out["n_special"]           = int(mask_special.sum())
-            out["n_no_special"]        = int(mask_no_special.sum())
-
-        # ── 受保护属性2: group_type（出行类型：家庭 vs 非家庭）────────
-        group_col  = FEATURE_NAMES.index("group_type")
-        gvals = X_test[:, group_col]
-        mask_family    = (gvals == 3)
-        mask_nonfamily = (gvals != 3)
-
-        if mask_family.sum() > 0 and mask_nonfamily.sum() > 0:
-            tpr_fam, fpr_fam = self._tpr_fpr(mask_family,    y_test_bin, y_pred_bin)
-            tpr_nfm, fpr_nfm = self._tpr_fpr(mask_nonfamily, y_test_bin, y_pred_bin)
-            aod_g = 0.5 * ((fpr_fam - fpr_nfm) + (tpr_fam - tpr_nfm))
-            spd_g = (y_pred_bin[mask_family].mean() - y_pred_bin[mask_nonfamily].mean())
-            out["aod_group_type"]  = round(float(aod_g), 4)
-            out["spd_group_type"]  = round(float(spd_g), 4)
-            out["n_family"]        = int(mask_family.sum())
-            out["n_nonfamily"]     = int(mask_nonfamily.sum())
-
-        out["favorable_label"]   = "非经济观光类(label≠0)"
-        out["protected_attr_1"]  = "has_special（特殊需求旅行者）"
-        out["protected_attr_2"]  = "group_type（家庭 vs 非家庭）"
-        out["method"]            = "Average Odds Difference (Hardt et al. 2016)"
-        return out
-
-    @staticmethod
-    def _aod_level(aod: float) -> str:
-        """AOD 公平等级判断"""
-        a = abs(aod)
-        if a < 0.05:
-            return "公平（|AOD|<0.05）"
-        elif a < 0.10:
-            return "边界（0.05≤|AOD|<0.10）"
-        else:
-            return "偏差（|AOD|≥0.10，需关注）"
 
     def _extract_features(self, meta: dict) -> dict:
         """从用户元数据提取特征向量"""
@@ -535,61 +424,6 @@ class SupervisedEngine:
             "model_accuracy": round(self.model_accuracy, 4),
             "dataset_size": self.dataset_size,
             "metadata": meta,
-            "responsible_ai": {
-                # ── 透明度 / Transparency ────────────────────────────
-                "transparency": (
-                    f"模型置信度 {round(confidence*100)}%；Top-3 特征重要性已暴露，可审查决策依据。"
-                    f"决策路径：{RECOMMENDATION_LABELS_ZH.get(rec_type,'—')} "
-                    f"由 VotingClassifier 软投票（GBT+RF+ExtraTrees）产生。"
-                ),
-                # ── 准确率诚实说明 / Accuracy Honesty Note ───────────
-                "accuracy_note": (
-                    f"测试准确率 {self.model_accuracy:.1%}：数据集包含 15% 随机标签噪声（模拟真实用户偏好不确定性），"
-                    "训练集与测试集均使用同等噪声水平，准确率更接近真实场景性能。"
-                    "标签由专家规则程序生成，训练数据为合成数据，实际部署仍需真实用户反馈验证。"
-                ),
-                # ── 公平性 / Fairness (AOD) ──────────────────────────
-                # 受保护属性①：has_special（特殊需求旅行者：携带儿童/老人/轮椅用户）
-                # 受保护属性②：group_type（家庭出行 vs 其他类型）
-                # 注：budget 为用户主动申报的约束，不属于人口学保护属性，不纳入 AOD 计算
-                "fairness_aod_special":  self.fairness_metrics.get("aod_special", None),
-                "fairness_aod_group":    self.fairness_metrics.get("aod_group_type", None),
-                "fairness_spd_special":  self.fairness_metrics.get("spd_special", None),
-                "fairness_level_special": (
-                    self._aod_level(self.fairness_metrics["aod_special"])
-                    if "aod_special" in self.fairness_metrics else "未计算"
-                ),
-                "fairness_level_group": (
-                    self._aod_level(self.fairness_metrics["aod_group_type"])
-                    if "aod_group_type" in self.fairness_metrics else "未计算"
-                ),
-                "fairness_method": "Average Odds Difference (IBM AIF360 / Hardt et al. 2016)",
-                "fairness_note": (
-                    "AOD = ½×[(FPR_弱势−FPR_优势)+(TPR_弱势−TPR_优势)]。"
-                    "受保护属性①特殊需求（有儿童/老人/轮椅=弱势，无=优势），"
-                    "受保护属性②出行类型（家庭=弱势/非家庭=优势）。"
-                    "|AOD|<0.05 为公平，≥0.10 需介入偏差缓解。"
-                    "预算为用户主动申报的约束条件，不属于公平性保护属性，不纳入计算。"
-                ),
-                # ── 鲁棒性 / Robustness ──────────────────────────────
-                "data_bias": (
-                    "训练数据由程序规则生成（非真实用户行为），存在规则偏差；"
-                    "5% 随机标签噪声已添加增强鲁棒性；集成学习（VotingClassifier）降低单模型过拟合。"
-                ),
-                # ── 问责 / Accountability ───────────────────────────
-                "group_fairness": (
-                    "各出行群体（单人/情侣/朋友/家庭）训练集均等采样（各25%）；"
-                    "AOD①量化特殊需求旅行者（老人/儿童/轮椅）与普通旅行者的推荐机会平等性；"
-                    "AOD②量化家庭出行与其他群体的推荐覆盖差异。"
-                ),
-                "city_coverage_note": (
-                    f"城市'{city}'" +
-                    ("在训练分布内。" if city_in_training else "不在训练城市特征中，城市特征维度均为0，可能影响预测准确性。")
-                ),
-                "city_in_training_distribution": city_in_training,
-                "deterministic": False,
-                "model_version": self.model_type,
-            },
         }
 
     def _build_itinerary(self, meta: dict, rec_type: int) -> str:
