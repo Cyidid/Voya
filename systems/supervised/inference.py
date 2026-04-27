@@ -98,6 +98,83 @@ CITY_DAILY_BUDGET = {
     "伊斯坦布尔": {"低": 220, "中": 550, "高": 1800}, "里斯本": {"低": 300, "中": 750, "高": 2200},
 }
 
+# 城市 × 推荐类型 → 具体真实景点
+CITY_TYPE_ACTIVITIES = {
+    "东京": {
+        1: {
+            "mornings": [
+                ("东京国立博物馆", "上野公园内的日本最大综合性博物馆，馆藏11万件国宝级文物"),
+                ("浅草寺·雷门", "东京最古老的寺庙，仲见世通商业街淘和果子伴手礼"),
+                ("根津美术馆", "隈研吾设计的竹林步道庭院，禅意与艺术的完美结合"),
+                ("江户东京博物馆", "实景还原江户时代街景，沉浸式体验日本历史"),
+            ],
+            "afternoons": [
+                ("上野公园漫步", "博物馆西侧的百年公园，樱花季和红叶季美不胜收"),
+                ("根津神社·千本鸟居", "隐藏在居民区的神社，迷你版伏见稻荷大社"),
+                ("谷中银座商店街", "下町风情的百年老街，可乐饼和烤团子必吃"),
+            ],
+        },
+        3: {
+            "mornings": [
+                ("台场TeamLab Borderless", "全球最大沉浸式数字艺术馆，孩子可以触摸光影互动"),
+                ("上野动物园", "亚洲现存最古老的动物园，大熊猫'香香'是人气明星"),
+                ("东京迪士尼乐园", "全球唯一拥有海洋和陆地两大主题园区的迪士尼"),
+            ],
+            "afternoons": [
+                ("台场海滨公园", "自由女神像前拍全家福，彩虹大桥海景尽收眼底"),
+                ("葛西临海水族馆", "金枪鱼大水槽和企鹅漫步，孩子最爱的水族馆"),
+            ],
+        },
+        5: {
+            "mornings": [
+                ("高尾山徒步", "东京近郊最热门登山路线，山顶可远眺富士山"),
+                ("多摩川骑行", "沿河岸骑行30km，春天樱花隧道美不胜收"),
+                ("箱根温泉徒步", "穿越箱根国立公园原始林道，徒步后泡露天温泉"),
+            ],
+            "afternoons": [
+                ("奥多摩湖皮划艇", "在东京最清澈的高山湖泊划独木舟"),
+                ("御岳溪谷溯溪", "东京都内难得的溯溪体验，夏季避暑首选"),
+            ],
+        },
+    },
+    "巴黎": {
+        1: {
+            "mornings": [
+                ("卢浮宫深度参观", "世界最大博物馆，蒙娜丽莎、断臂维纳斯必看馆藏"),
+                ("奥赛博物馆", "印象派殿堂，莫奈睡莲、梵高星空尽收眼底"),
+                ("蓬皮杜艺术中心", "当代艺术旗舰展馆，顶层餐厅俯瞰巴黎全景"),
+                ("玛黑区文艺复兴馆", "雨果故居博物馆，隐藏的文艺复兴庭院"),
+            ],
+            "afternoons": [
+                ("拉丁区漫步", "先贤祠到莎士比亚书店的文学朝圣之路"),
+                ("蒙马特画家广场", "小丘广场看街头画家写生，圣心堂俯瞰全城"),
+                ("杜乐丽花园", "卢浮宫与协和广场之间的皇家花园"),
+            ],
+        },
+        3: {
+            "mornings": [
+                ("巴黎迪士尼乐园", "欧洲唯一迪士尼，睡美人城堡和加勒比海盗必玩"),
+                ("卢森堡公园木马", "百年旋转木马+帆船池，巴黎人周末遛娃首选"),
+                ("自然历史博物馆", "大画廊的恐龙化石和进化馆让孩子大开眼界"),
+            ],
+            "afternoons": [
+                ("凡尔赛宫花园", "法式园林巅峰，镜宫和小特里亚农宫漫步"),
+                ("科学工业城", "欧洲最大科技馆，潜艇实体和互动实验室超好玩"),
+            ],
+        },
+        5: {
+            "mornings": [
+                ("凡尔赛宫花园骑行", "租自行车穿越法式园林，镜宫和大运河不可错过"),
+                ("枫丹白露森林徒步", "巴黎人最爱的近郊徒步地，枫丹白露宫半日联游"),
+            ],
+            "afternoons": [
+                ("塞纳河皮划艇", "从埃菲尔铁塔下划船穿过，最独特的巴黎视角"),
+                ("蒙马特高地徒步", "艺术家聚集地，圣心堂俯瞰巴黎全城"),
+            ],
+        },
+    },
+}
+
 
 # ── 训练数据生成 ───────────────────────────────────────────
 
@@ -105,6 +182,9 @@ def _expert_label(f: dict) -> int:
     """
     专家规则：根据特征生成训练标签。
     这模拟了"人工标注"的过程，让模型从这些模式中学习。
+
+    优化：引入软规则，减少硬性优先级导致的群体锁定问题。
+    每个规则增加更多条件分支，避免单一条件直接决定结果。
     """
     budget = f["budget_level"] # 0=低, 1=中, 2=高
     has_special = f["has_special"] # 1=有特殊需求
@@ -119,11 +199,15 @@ def _expert_label(f: dict) -> int:
     nightlife = f["interest_nightlife"]
     days = f["days"]
 
-    # 优先级1：情侣 + 高预算 → 情侣浪漫游
     if group_type == 1 and budget == 2:
         return 6
-    # 优先级2：家庭 + 特殊需求 → 亲子家庭游
     if group_type == 3 and has_special == 1:
+        if culture + history >= 1 and food + shopping == 0:
+            return 1
+        if food + shopping >= 1 and culture + history == 0:
+            return 4
+        if outdoor + nature >= 1 and days >= 3:
+            return 5
         return 3
     # 优先级3：户外/自然兴趣 + 天数>=3 → 户外探险游
     if (outdoor + nature) >= 1 and days >= 3:
@@ -382,6 +466,31 @@ class SupervisedEngine:
         # Fallback：用专家规则直接标注
         return _expert_label(features), 0.80
 
+    def _predict_proba(self, features: dict) -> List[Tuple[str, float]]:
+        """返回所有推荐类型的概率分布"""
+        if not self.model or not SKLEARN_AVAILABLE:
+            return []
+        X = np.array([[features[n] for n in FEATURE_NAMES]])
+        probas = self.model.predict_proba(X)[0]
+        result = []
+        for i, prob in enumerate(probas):
+            result.append((RECOMMENDATION_LABELS_ZH.get(i, "未知"), round(float(prob), 4)))
+        result.sort(key=lambda x: x[1], reverse=True)
+        return result
+
+    def _decision_path(self, features: dict) -> List[Tuple[str, float]]:
+        """返回决策路径：哪些特征推动了本次预测"""
+        # 使用特征重要性 + 实际特征值，估算每个特征的贡献度
+        contributions = []
+        for name in FEATURE_NAMES:
+            importance = self.feature_importances.get(name, 0)
+            value = features.get(name, 0)
+            # 仅考虑有值特征（非零）
+            if value != 0 and importance > 0:
+                contributions.append((FEATURE_NAMES_ZH.get(name, name), round(importance * 100, 1)))
+        contributions.sort(key=lambda x: x[1], reverse=True)
+        return contributions[:5]
+
     def _top_features(self, n: int = 3) -> List[Tuple[str, float]]:
         """返回最重要的 n 个特征（中文名+权重）"""
         sorted_f = sorted(
@@ -397,6 +506,11 @@ class SupervisedEngine:
         rec_name = RECOMMENDATION_TYPES.get(rec_type, "cultural_deep_dive")
         rec_name_zh = RECOMMENDATION_LABELS_ZH.get(rec_type, "文化深度游")
 
+        # 方案3：增强可解释性输出
+        proba_dist = self._predict_proba(features)
+        decision_path = self._decision_path(features)
+        is_uncertain = len(proba_dist) >= 2 and (proba_dist[0][1] - proba_dist[1][1] < 0.1)
+
         itinerary = self._build_itinerary(meta, rec_type)
 
         days = meta.get("days", 3)
@@ -409,7 +523,7 @@ class SupervisedEngine:
         known_cities = ["巴黎", "东京", "纽约", "伦敦", "罗马", "首尔", "迪拜"]
         city_in_training = city in known_cities
 
-        return {
+        result = {
             "system": "supervised",
             "itinerary": itinerary,
             "output": itinerary,
@@ -424,7 +538,12 @@ class SupervisedEngine:
             "model_accuracy": round(self.model_accuracy, 4),
             "dataset_size": self.dataset_size,
             "metadata": meta,
+            # 增强可解释性
+            "proba_distribution": proba_dist,
+            "decision_path": decision_path,
+            "is_uncertain": is_uncertain,
         }
+        return result
 
     def _build_itinerary(self, meta: dict, rec_type: int) -> str:
         """根据推荐类型生成每日行程，返回 Markdown 格式字符串"""
@@ -435,6 +554,10 @@ class SupervisedEngine:
         group = meta.get("group", "朋友")
         special = meta.get("special", "无")
         rec_name_zh = RECOMMENDATION_LABELS_ZH.get(rec_type, "文化深度游")
+        interests = meta.get("interests", [])
+
+        # 方案1：城市-类型活动映射，让推荐更具体
+        city_activities = CITY_TYPE_ACTIVITIES.get(city, {}).get(rec_type, {})
 
         # 每种推荐类型的活动模板（每个 key 对应一个列表，按天轮换，避免重复）
         templates = {
@@ -678,11 +801,22 @@ class SupervisedEngine:
             ]
             mood = day_moods[(day - 1) % len(day_moods)]
 
-            # 按天轮换活动（mornings/afternoons/evenings/lunches 均为列表）
-            idx = (day - 1) % len(tmpl["mornings"])
-            morning_act, morning_detail = tmpl["mornings"][idx]
-            idx_a = (day - 1) % len(tmpl["afternoons"])
-            afternoon_act, afternoon_detail = tmpl["afternoons"][idx_a]
+            # 优先使用城市-类型真实景点，否则回退到通用模板
+            city_key = city_activities.get("mornings", [])
+            if city_key:
+                idx_c = (day - 1) % len(city_key)
+                morning_act, morning_detail = city_key[idx_c]
+            else:
+                idx = (day - 1) % len(tmpl["mornings"])
+                morning_act, morning_detail = tmpl["mornings"][idx]
+
+            city_key_a = city_activities.get("afternoons", [])
+            if city_key_a:
+                idx_ca = (day - 1) % len(city_key_a)
+                afternoon_act, afternoon_detail = city_key_a[idx_ca]
+            else:
+                idx_a = (day - 1) % len(tmpl["afternoons"])
+                afternoon_act, afternoon_detail = tmpl["afternoons"][idx_a]
             idx_e = (day - 1) % len(tmpl["evenings"])
             evening_act = tmpl["evenings"][idx_e]
             idx_l = (day - 1) % len(tmpl["lunches"])
