@@ -376,7 +376,7 @@ def _date_multiplier(date_str: str) -> float:
             return 1.30
         if m == 9 and 13 <= d <= 15:    # 中秋
             return 1.30
-        if m == 2 and 11 <= d <= 28:    # 春节后尾声
+        if m == 2 and d >= 11:          # 春节后尾声（含闰年2月29日）
             return 1.30
         if m == 10 and d >= 8:          # 国庆后
             return 1.30
