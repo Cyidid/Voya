@@ -1,0 +1,830 @@
+[
+  {
+    "id": "TEST_00031",
+    "metadata": {
+      "city": "纽约",
+      "days": 3,
+      "budget": "高",
+      "interests": [
+        "历史",
+        "户外",
+        "自然"
+      ],
+      "group": "单人",
+      "num_people": 2,
+      "travel_mode": "高铁",
+      "special": "无"
+    }
+  },
+  {
+    "id": "TEST_00082",
+    "metadata": {
+      "city": "罗马",
+      "days": 2,
+      "budget": "高",
+      "interests": [
+        "夜生活"
+      ],
+      "group": "单人",
+      "num_people": 7,
+      "travel_mode": "飞机",
+      "special": "有儿童"
+    }
+  },
+  {
+    "id": "TEST_00129",
+    "metadata": {
+      "city": "维也纳",
+      "days": 2,
+      "budget": "高",
+      "interests": [
+        "自然"
+      ],
+      "group": "单人",
+      "num_people": 2,
+      "travel_mode": "邮轮",
+      "special": "有老人"
+    }
+  },
+  {
+    "id": "TEST_00132",
+    "metadata": {
+      "city": "伦敦",
+      "days": 7,
+      "budget": "中",
+      "interests": [
+        "美食",
+        "购物",
+        "夜生活",
+        "户外"
+      ],
+      "group": "单人",
+      "num_people": 2,
+      "travel_mode": "邮轮",
+      "special": "有老人"
+    }
+  },
+  {
+    "id": "TEST_00166",
+    "metadata": {
+      "city": "曼谷",
+      "days": 1,
+      "budget": "高",
+      "interests": [
+        "文化",
+        "购物"
+      ],
+      "group": "单人",
+      "num_people": 5,
+      "travel_mode": "飞机",
+      "special": "有老人"
+    }
+  },
+  {
+    "id": "TEST_00221",
+    "metadata": {
+      "city": "首尔",
+      "days": 1,
+      "budget": "中",
+      "interests": [
+        "文化",
+        "购物",
+        "夜生活"
+      ],
+      "group": "单人",
+      "num_people": 4,
+      "travel_mode": "邮轮",
+      "special": "轮椅友好"
+    }
+  },
+  {
+    "id": "TEST_00027",
+    "metadata": {
+      "city": "迪拜",
+      "days": 3,
+      "budget": "中",
+      "interests": [
+        "美食",
+        "自然",
+        "户外",
+        "夜生活"
+      ],
+      "group": "单人",
+      "num_people": 2,
+      "travel_mode": "邮轮",
+      "special": "无"
+    }
+  },
+  {
+    "id": "TEST_00227",
+    "metadata": {
+      "city": "巴黎",
+      "days": 4,
+      "budget": "低",
+      "interests": [
+        "美食"
+      ],
+      "group": "单人",
+      "num_people": 8,
+      "travel_mode": "飞机",
+      "special": "轮椅友好"
+    }
+  },
+  {
+    "id": "TEST_00058",
+    "metadata": {
+      "city": "纽约",
+      "days": 4,
+      "budget": "低",
+      "interests": [
+        "美食",
+        "历史",
+        "自然",
+        "文化"
+      ],
+      "group": "单人",
+      "num_people": 8,
+      "travel_mode": "飞机",
+      "special": "无"
+    }
+  },
+  {
+    "id": "TEST_00230",
+    "metadata": {
+      "city": "首尔",
+      "days": 6,
+      "budget": "中",
+      "interests": [
+        "购物",
+        "户外"
+      ],
+      "group": "单人",
+      "num_people": 8,
+      "travel_mode": "高铁",
+      "special": "轮椅友好"
+    }
+  },
+  {
+    "id": "TEST_00634",
+    "metadata": {
+      "city": "阿姆斯特丹",
+      "days": 1,
+      "budget": "低",
+      "interests": [
+        "户外",
+        "购物",
+        "自然",
+        "文化"
+      ],
+      "group": "夫妻",
+      "num_people": 2,
+      "travel_mode": "自驾",
+      "special": "有老人"
+    }
+  },
+  {
+    "id": "TEST_00640",
+    "metadata": {
+      "city": "东京",
+      "days": 6,
+      "budget": "低",
+      "interests": [
+        "美食",
+        "夜生活"
+      ],
+      "group": "夫妻",
+      "num_people": 2,
+      "travel_mode": "飞机",
+      "special": "有老人"
+    }
+  },
+  {
+    "id": "TEST_00623",
+    "metadata": {
+      "city": "巴黎",
+      "days": 3,
+      "budget": "低",
+      "interests": [
+        "文化",
+        "历史"
+      ],
+      "group": "夫妻",
+      "num_people": 2,
+      "travel_mode": "邮轮",
+      "special": "有老人"
+    }
+  },
+  {
+    "id": "TEST_00588",
+    "metadata": {
+      "city": "罗马",
+      "days": 6,
+      "budget": "高",
+      "interests": [
+        "户外",
+        "夜生活"
+      ],
+      "group": "夫妻",
+      "num_people": 2,
+      "travel_mode": "邮轮",
+      "special": "有儿童"
+    }
+  },
+  {
+    "id": "TEST_00681",
+    "metadata": {
+      "city": "纽约",
+      "days": 1,
+      "budget": "中",
+      "interests": [
+        "文化",
+        "购物",
+        "历史"
+      ],
+      "group": "夫妻",
+      "num_people": 2,
+      "travel_mode": "邮轮",
+      "special": "轮椅友好"
+    }
+  },
+  {
+    "id": "TEST_00627",
+    "metadata": {
+      "city": "巴黎",
+      "days": 1,
+      "budget": "高",
+      "interests": [
+        "文化",
+        "户外",
+        "购物"
+      ],
+      "group": "夫妻",
+      "num_people": 2,
+      "travel_mode": "飞机",
+      "special": "有老人"
+    }
+  },
+  {
+    "id": "TEST_00621",
+    "metadata": {
+      "city": "悉尼",
+      "days": 7,
+      "budget": "高",
+      "interests": [
+        "夜生活",
+        "购物",
+        "自然"
+      ],
+      "group": "夫妻",
+      "num_people": 2,
+      "travel_mode": "邮轮",
+      "special": "有老人"
+    }
+  },
+  {
+    "id": "TEST_00696",
+    "metadata": {
+      "city": "东京",
+      "days": 1,
+      "budget": "中",
+      "interests": [
+        "美食",
+        "文化",
+        "历史"
+      ],
+      "group": "夫妻",
+      "num_people": 2,
+      "travel_mode": "自驾",
+      "special": "轮椅友好"
+    }
+  },
+  {
+    "id": "TEST_00668",
+    "metadata": {
+      "city": "悉尼",
+      "days": 6,
+      "budget": "低",
+      "interests": [
+        "夜生活",
+        "美食"
+      ],
+      "group": "夫妻",
+      "num_people": 2,
+      "travel_mode": "飞机",
+      "special": "轮椅友好"
+    }
+  },
+  {
+    "id": "TEST_00679",
+    "metadata": {
+      "city": "阿姆斯特丹",
+      "days": 4,
+      "budget": "低",
+      "interests": [
+        "夜生活",
+        "历史"
+      ],
+      "group": "夫妻",
+      "num_people": 2,
+      "travel_mode": "飞机",
+      "special": "轮椅友好"
+    }
+  },
+  {
+    "id": "TEST_01157",
+    "metadata": {
+      "city": "巴黎",
+      "days": 3,
+      "budget": "中",
+      "interests": [
+        "户外",
+        "美食"
+      ],
+      "group": "家庭",
+      "num_people": 3,
+      "travel_mode": "飞机",
+      "special": "轮椅友好"
+    }
+  },
+  {
+    "id": "TEST_01086",
+    "metadata": {
+      "city": "首尔",
+      "days": 7,
+      "budget": "低",
+      "interests": [
+        "购物"
+      ],
+      "group": "家庭",
+      "num_people": 4,
+      "travel_mode": "飞机",
+      "special": "有老人"
+    }
+  },
+  {
+    "id": "TEST_01153",
+    "metadata": {
+      "city": "巴塞罗那",
+      "days": 2,
+      "budget": "高",
+      "interests": [
+        "户外",
+        "历史",
+        "美食",
+        "自然"
+      ],
+      "group": "家庭",
+      "num_people": 4,
+      "travel_mode": "飞机",
+      "special": "轮椅友好"
+    }
+  },
+  {
+    "id": "TEST_01158",
+    "metadata": {
+      "city": "伦敦",
+      "days": 5,
+      "budget": "高",
+      "interests": [
+        "历史",
+        "文化",
+        "美食",
+        "购物"
+      ],
+      "group": "家庭",
+      "num_people": 6,
+      "travel_mode": "自驾",
+      "special": "轮椅友好"
+    }
+  },
+  {
+    "id": "TEST_01111",
+    "metadata": {
+      "city": "曼谷",
+      "days": 2,
+      "budget": "低",
+      "interests": [
+        "购物"
+      ],
+      "group": "家庭",
+      "num_people": 7,
+      "travel_mode": "邮轮",
+      "special": "有老人"
+    }
+  },
+  {
+    "id": "TEST_01073",
+    "metadata": {
+      "city": "迪拜",
+      "days": 3,
+      "budget": "中",
+      "interests": [
+        "自然"
+      ],
+      "group": "家庭",
+      "num_people": 2,
+      "travel_mode": "邮轮",
+      "special": "有儿童"
+    }
+  },
+  {
+    "id": "TEST_01022",
+    "metadata": {
+      "city": "新加坡",
+      "days": 3,
+      "budget": "低",
+      "interests": [
+        "购物",
+        "户外",
+        "历史",
+        "文化"
+      ],
+      "group": "家庭",
+      "num_people": 3,
+      "travel_mode": "自驾",
+      "special": "有儿童"
+    }
+  },
+  {
+    "id": "TEST_00961",
+    "metadata": {
+      "city": "巴黎",
+      "days": 6,
+      "budget": "中",
+      "interests": [
+        "文化"
+      ],
+      "group": "家庭",
+      "num_people": 4,
+      "travel_mode": "自驾",
+      "special": "无"
+    }
+  },
+  {
+    "id": "TEST_01118",
+    "metadata": {
+      "city": "纽约",
+      "days": 4,
+      "budget": "低",
+      "interests": [
+        "户外",
+        "美食"
+      ],
+      "group": "家庭",
+      "num_people": 2,
+      "travel_mode": "飞机",
+      "special": "有老人"
+    }
+  },
+  {
+    "id": "TEST_00981",
+    "metadata": {
+      "city": "迪拜",
+      "days": 6,
+      "budget": "低",
+      "interests": [
+        "夜生活",
+        "自然"
+      ],
+      "group": "家庭",
+      "num_people": 3,
+      "travel_mode": "飞机",
+      "special": "无"
+    }
+  },
+  {
+    "id": "TEST_00269",
+    "metadata": {
+      "city": "阿姆斯特丹",
+      "days": 4,
+      "budget": "高",
+      "interests": [
+        "自然",
+        "购物"
+      ],
+      "group": "情侣",
+      "num_people": 2,
+      "travel_mode": "邮轮",
+      "special": "无"
+    }
+  },
+  {
+    "id": "TEST_00314",
+    "metadata": {
+      "city": "东京",
+      "days": 3,
+      "budget": "高",
+      "interests": [
+        "自然",
+        "购物",
+        "夜生活",
+        "历史"
+      ],
+      "group": "情侣",
+      "num_people": 2,
+      "travel_mode": "高铁",
+      "special": "有儿童"
+    }
+  },
+  {
+    "id": "TEST_00450",
+    "metadata": {
+      "city": "悉尼",
+      "days": 5,
+      "budget": "高",
+      "interests": [
+        "购物",
+        "历史"
+      ],
+      "group": "情侣",
+      "num_people": 2,
+      "travel_mode": "高铁",
+      "special": "轮椅友好"
+    }
+  },
+  {
+    "id": "TEST_00266",
+    "metadata": {
+      "city": "东京",
+      "days": 3,
+      "budget": "低",
+      "interests": [
+        "美食",
+        "购物",
+        "历史"
+      ],
+      "group": "情侣",
+      "num_people": 2,
+      "travel_mode": "自驾",
+      "special": "无"
+    }
+  },
+  {
+    "id": "TEST_00356",
+    "metadata": {
+      "city": "罗马",
+      "days": 1,
+      "budget": "中",
+      "interests": [
+        "夜生活",
+        "自然",
+        "户外",
+        "历史"
+      ],
+      "group": "情侣",
+      "num_people": 2,
+      "travel_mode": "自驾",
+      "special": "有儿童"
+    }
+  },
+  {
+    "id": "TEST_00243",
+    "metadata": {
+      "city": "悉尼",
+      "days": 1,
+      "budget": "高",
+      "interests": [
+        "夜生活",
+        "户外",
+        "文化",
+        "自然"
+      ],
+      "group": "情侣",
+      "num_people": 2,
+      "travel_mode": "高铁",
+      "special": "无"
+    }
+  },
+  {
+    "id": "TEST_00449",
+    "metadata": {
+      "city": "维也纳",
+      "days": 7,
+      "budget": "高",
+      "interests": [
+        "历史",
+        "美食"
+      ],
+      "group": "情侣",
+      "num_people": 2,
+      "travel_mode": "高铁",
+      "special": "轮椅友好"
+    }
+  },
+  {
+    "id": "TEST_00469",
+    "metadata": {
+      "city": "纽约",
+      "days": 3,
+      "budget": "中",
+      "interests": [
+        "文化",
+        "户外"
+      ],
+      "group": "情侣",
+      "num_people": 2,
+      "travel_mode": "自驾",
+      "special": "轮椅友好"
+    }
+  },
+  {
+    "id": "TEST_00416",
+    "metadata": {
+      "city": "伦敦",
+      "days": 6,
+      "budget": "中",
+      "interests": [
+        "文化",
+        "自然"
+      ],
+      "group": "情侣",
+      "num_people": 2,
+      "travel_mode": "邮轮",
+      "special": "有老人"
+    }
+  },
+  {
+    "id": "TEST_00366",
+    "metadata": {
+      "city": "纽约",
+      "days": 4,
+      "budget": "高",
+      "interests": [
+        "购物",
+        "夜生活",
+        "户外",
+        "历史"
+      ],
+      "group": "情侣",
+      "num_people": 2,
+      "travel_mode": "邮轮",
+      "special": "有老人"
+    }
+  },
+  {
+    "id": "TEST_00894",
+    "metadata": {
+      "city": "罗马",
+      "days": 1,
+      "budget": "低",
+      "interests": [
+        "美食",
+        "历史"
+      ],
+      "group": "朋友",
+      "num_people": 4,
+      "travel_mode": "自驾",
+      "special": "有老人"
+    }
+  },
+  {
+    "id": "TEST_00801",
+    "metadata": {
+      "city": "罗马",
+      "days": 6,
+      "budget": "高",
+      "interests": [
+        "户外",
+        "夜生活"
+      ],
+      "group": "朋友",
+      "num_people": 4,
+      "travel_mode": "邮轮",
+      "special": "有儿童"
+    }
+  },
+  {
+    "id": "TEST_00774",
+    "metadata": {
+      "city": "悉尼",
+      "days": 7,
+      "budget": "中",
+      "interests": [
+        "购物",
+        "美食",
+        "历史"
+      ],
+      "group": "朋友",
+      "num_people": 8,
+      "travel_mode": "自驾",
+      "special": "无"
+    }
+  },
+  {
+    "id": "TEST_00822",
+    "metadata": {
+      "city": "伦敦",
+      "days": 6,
+      "budget": "低",
+      "interests": [
+        "文化"
+      ],
+      "group": "朋友",
+      "num_people": 5,
+      "travel_mode": "邮轮",
+      "special": "有儿童"
+    }
+  },
+  {
+    "id": "TEST_00785",
+    "metadata": {
+      "city": "首尔",
+      "days": 3,
+      "budget": "中",
+      "interests": [
+        "美食",
+        "购物",
+        "夜生活",
+        "历史"
+      ],
+      "group": "朋友",
+      "num_people": 4,
+      "travel_mode": "高铁",
+      "special": "有儿童"
+    }
+  },
+  {
+    "id": "TEST_00810",
+    "metadata": {
+      "city": "巴塞罗那",
+      "days": 5,
+      "budget": "高",
+      "interests": [
+        "历史",
+        "购物",
+        "美食"
+      ],
+      "group": "朋友",
+      "num_people": 6,
+      "travel_mode": "自驾",
+      "special": "有儿童"
+    }
+  },
+  {
+    "id": "TEST_00958",
+    "metadata": {
+      "city": "维也纳",
+      "days": 5,
+      "budget": "中",
+      "interests": [
+        "户外",
+        "文化",
+        "历史"
+      ],
+      "group": "朋友",
+      "num_people": 1,
+      "travel_mode": "邮轮",
+      "special": "轮椅友好"
+    }
+  },
+  {
+    "id": "TEST_00812",
+    "metadata": {
+      "city": "罗马",
+      "days": 2,
+      "budget": "中",
+      "interests": [
+        "夜生活",
+        "购物"
+      ],
+      "group": "朋友",
+      "num_people": 6,
+      "travel_mode": "自驾",
+      "special": "有儿童"
+    }
+  },
+  {
+    "id": "TEST_00927",
+    "metadata": {
+      "city": "迪拜",
+      "days": 5,
+      "budget": "中",
+      "interests": [
+        "购物",
+        "历史",
+        "自然"
+      ],
+      "group": "朋友",
+      "num_people": 3,
+      "travel_mode": "高铁",
+      "special": "轮椅友好"
+    }
+  },
+  {
+    "id": "TEST_00817",
+    "metadata": {
+      "city": "阿姆斯特丹",
+      "days": 1,
+      "budget": "低",
+      "interests": [
+        "户外",
+        "购物",
+        "自然"
+      ],
+      "group": "朋友",
+      "num_people": 5,
+      "travel_mode": "邮轮",
+      "special": "有儿童"
+    }
+  }
+]

@@ -357,15 +357,22 @@ def _price_vary(base: int, seed: str, factor: float = 0.15) -> int:
 
 
 def _date_multiplier(date_str: str) -> float:
-    """日期系数：周末/节假日 ×1.25，旺季(7-8月/国庆/春节前后) ×1.40"""
+    """日期系数：黄金周 ×1.55，旺季 ×1.40，小旺季 ×1.30，周末 ×1.20"""
     try:
         dt = datetime.strptime(date_str, "%Y-%m-%d")
-        m = dt.month
-        # 旺季
-        if m in (7, 8, 1):
+        m, d = dt.month, dt.day
+        # 黄金周：五一(5/1-5)、国庆(10/1-7)、春节(1/20-2/10 窗口)
+        if (m == 5 and 1 <= d <= 5) or (m == 10 and 1 <= d <= 7):
+            return 1.55
+        if (m == 1 and d >= 20) or (m == 2 and d <= 10):
+            return 1.55
+        # 旺季：暑假 7-8月，元旦
+        if m in (7, 8) or (m == 1 and d <= 3):
             return 1.40
-        # 小旺季
-        if m in (10, 2):
+        # 小旺季：清明(4/3-6)、端午(6/10-12 approx)、中秋(9/13-15 approx)
+        if m == 4 and 3 <= d <= 6:
+            return 1.30
+        if m in (2, 10):
             return 1.30
         # 周末
         if dt.weekday() >= 5:
@@ -373,6 +380,40 @@ def _date_multiplier(date_str: str) -> float:
         return 1.0
     except Exception:
         return 1.0
+
+
+def _seats_available(date_str: str, capacity: int, seed: str) -> int:
+    """
+    根据日期紧张程度计算余票数。
+    黄金周：2-15%；旺季：15-40%；周末：40-70%；平日：60-95%
+    同一 (日期+航班) seed 结果确定（不随时间漂移）。
+    """
+    try:
+        dt = datetime.strptime(date_str, "%Y-%m-%d")
+        m, d = dt.month, dt.day
+
+        is_golden = ((m == 5 and 1 <= d <= 5)
+                     or (m == 10 and 1 <= d <= 7)
+                     or (m == 1 and d >= 20)
+                     or (m == 2 and d <= 10))
+        is_peak   = m in (7, 8) or (m == 4 and 3 <= d <= 6)
+        is_weekend = dt.weekday() >= 5
+
+        h = int(hashlib.md5(seed.encode()).hexdigest()[:6], 16)
+        ratio = h / 0xFFFFFF  # 0~1 均匀
+
+        if is_golden:
+            pct = 0.02 + ratio * 0.13   # 2-15%
+        elif is_peak:
+            pct = 0.15 + ratio * 0.25   # 15-40%
+        elif is_weekend:
+            pct = 0.40 + ratio * 0.30   # 40-70%
+        else:
+            pct = 0.60 + ratio * 0.35   # 60-95%
+
+        return max(1, int(capacity * pct))
+    except Exception:
+        return capacity // 2
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -415,8 +456,11 @@ def search_tickets(
                 seats_to_show.append(("商务座", biz))
 
             for seat_name, price in seats_to_show:
+                ticket_id = f"{t['code']}-{date.replace('-','')}-{seat_name}"
+                # 高铁定员：二等座~1000，一等座~200，商务座~32
+                train_cap = 1000 if seat_name == "二等座" else (200 if seat_name == "一等座" else 32)
                 results.append({
-                    "id": f"{t['code']}-{date.replace('-','')}-{seat_name}",
+                    "id": ticket_id,
                     "type": "train",
                     "train_type": t["type"],
                     "code": t["code"],
@@ -427,7 +471,7 @@ def search_tickets(
                     "duration": t["duration"],
                     "price": round(price * date_mult),
                     "seat": seat_name,
-                    "seats": 200,  # 高铁余票通常充足
+                    "seats": _seats_available(date, train_cap, ticket_id),
                 })
 
         if not results:
@@ -454,9 +498,10 @@ def search_tickets(
         via_str  = f.get("via", "")
         stop_label = "直飞" if stop_str == 0 else f"经停{via_str}"
 
+        econ_id = f"{f['code']}-{date.replace('-','')}-econ"
         # 经济舱条目
         results.append({
-            "id": f"{f['code']}-{date.replace('-','')}-econ",
+            "id": econ_id,
             "type": "flight",
             "airline": f["airline"],
             "code": f["code"],
@@ -469,7 +514,7 @@ def search_tickets(
             "cabin": "经济舱",
             "stops": stop_str,
             "stop_label": stop_label,
-            "seats": 45,
+            "seats": _seats_available(date, 180, econ_id),  # 经济舱约180座
             "data_note": "参考数据，以航司实时报价为准",
         })
 
@@ -478,12 +523,13 @@ def search_tickets(
             blo, bhi = f["biz"]
             biz_base  = (blo + bhi) // 2
             biz_price = round(_price_vary(biz_base, seed + "b", 0.15) * date_mult)
+            biz_id = f"{f['code']}-{date.replace('-','')}-biz"
             results.append({
                 **results[-1],
-                "id": f"{f['code']}-{date.replace('-','')}-biz",
+                "id": biz_id,
                 "cabin": "商务舱",
                 "price": biz_price,
-                "seats": 12,
+                "seats": _seats_available(date, 24, biz_id),  # 商务舱约24座
             })
 
     results.sort(key=lambda x: x["price"])

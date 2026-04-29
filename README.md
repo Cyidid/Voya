@@ -1,125 +1,202 @@
-# Voya · AI Travel Planner
+# 云游 AI 旅行规划 — 项目说明文档
 
-> 三种 AI 设计范式的旅行行程规划系统：规则系统 · 监督学习 · 目标导向智能体
+## 1. 项目概述
+
+云游（Voya）是一个面向旅行场景的 AI 驱动旅行规划系统。它通过三种不同范式的推荐算法引擎生成个性化行程，并通过统一的 Web UI 向用户展示。项目核心关注两个问题：
+
+1. **推荐算法效果**：三种范式在速度、多样性、可解释性上的表现
+2. **负责任 AI（公平性）**：不同用户群体收到的推荐是否存在系统性差异
 
 ---
 
-## 快速启动
+## 2. 推荐算法系统 — 三种范式
+
+### 2.1 整体架构
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        前端 UI (HTML/CSS/JS)                  │
+│  ┌─────────────┐   ┌──────────────┐   ┌──────────────────┐   │
+│  │ 系统选择卡片 │ → │ 参数设置面板  │ → │ 流式行程展示区    │   │
+│  └─────────────┘   └──────────────┘   └──────────────────┘   │
+└─────────────────────────┬───────────────────────────────────┘
+                          │ HTTP API
+┌─────────────────────────▼───────────────────────────────────┐
+│                    API 服务层 (FastAPI)                       │
+│  /api/generate · /api/generate/stream · /api/chat           │
+└────┬──────────────┬──────────────────┬──────────────────────┘
+     │              │                  │
+┌────▼────┐  ┌─────▼──────┐  ┌───────▼────────────┐
+│ 规则引擎 │  │ 监督模型   │  │ LLM 目标导向代理    │
+│ engine.py│  │ inference  │  │ agent_agentic.py   │
+│ if-else  │  │ 分类器     │  │ qwen3.6-plus Agent    │
+└─────────┘  └────────────┘  └────────────────────┘
+```
+
+**数据流**：用户选择引擎 → 设置参数 → API 路由 /api/generate → 对应引擎 generate() → JSON/流式返回 → 前端渲染
+
+**三引擎关系**：技术演进的三代，不是并行竞品。
+
+---
+
+### 2.2 第一代：规则系统（Rule-Based）
+
+**文件**：`systems/rule_based/engine.py`
+
+**原理**：人工编写的确定性推荐引擎，25 个城市 × 6 类兴趣 × 3 级预算，通过规则匹配 + 轮换算法生成行程。
+
+**决策流程**：
+```
+输入参数 (city, days, budget, group, interests, special)
+        │
+        ▼
+  城市验证 → 不支持则回退巴黎 + coverage_gap 警告
+        │
+        ▼
+  兴趣映射 (文化→culture, 自然→nature, ...)
+        │
+        ▼
+  每日三时段轮换: slot_index = (day_index + slot_offset) % len(pool)
+        │
+        ▼
+  行程组装 → Markdown 输出
+```
+
+**特点**：响应 <0.1ms、100% 成功率、完全可解释、25 个城市含气候数据。
+
+---
+
+### 2.3 第二代：监督学习系统（Supervised / ML）
+
+**文件**：`systems/supervised/inference.py`
+
+**原理**：集成学习分类器（VotingClassifier 软投票），从 20 维特征向量中预测 8 种推荐类型之一。
+
+**模型架构**：
+```
+20 维特征向量 → VotingClassifier(软投票) → 8 类概率
+                 ├── GradientBoosting (120棵, depth=3, lr=0.08, subsample=0.75)
+                 ├── RandomForest (120棵, depth=6, min_leaf=5)
+                 └── ExtraTrees (100棵, depth=6, min_leaf=5)
+```
+
+**8 种推荐类型**：经济观光、文化深度游、奢华体验、亲子家庭游、美食购物游、户外探险游、情侣浪漫游、团队社交游
+
+**训练数据**：10,000 条（8,000 训练 + 2,000 测试），15% 噪声，群体各 25%，7 个训练城市
+
+**测试准确率**：86.8%，推理延迟 <1ms
+
+---
+
+### 2.4 第三代：LLM 目标导向系统（Goal-Based / Agent）
+
+**文件**：`systems/goal_based/agent_agentic.py`
+
+**原理**：给定高层目标，LLM 自主决策生成基于实时信息的个性化行程。
+
+**Agent 配置**：
+- 模型：qwen3.6-plus（通义千问，OpenAI 兼容 API）
+- temperature：0.75
+- max_tokens：8192
+- 工具链：Tavily 网络搜索 + ChromaDB 知识库（22 城市）
+- 缓存：MD5 哈希类级缓存，最大 30 条
+
+**特点**：支持全球任意目的地、非确定性、30–60 秒响应、输出最丰富。
+
+---
+
+### 2.5 三算法对比
+
+| 维度 | 规则系统 | 监督系统 | LLM 系统 |
+|------|---------|---------|---------|
+| 推理方式 | 条件分支 | 集成分类 | 自然语言生成 |
+| 响应时间 | <0.1ms | <1ms | 30–60s |
+| 城市覆盖 | 25 个 | 7 个训练 | 全球 |
+| 可解释性 | ★★★★★ | ★★★★ | ★★★ |
+| 意图对齐 | ⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| 公平性风险 | 地理偏见 | 数据偏见 | LLM 偏见 |
+
+---
+
+## 3. 前端 UI 与交互
+
+### 3.1 技术栈
+- 原生 HTML + CSS + JS（无框架）
+- 第三方：marked.js（Markdown 渲染）
+- FastAPI 后端，支持 SSE 流式输出
+
+### 3.2 布局结构
+- 左侧：系统选择卡片 + 参数面板
+- 中间：行程展示区（流式输出）+ 对话编辑器
+- 右侧：工具面板（汇率/紧急联系/短语）
+
+### 3.3 性能优化
+| 优化项 | 改造前 | 改造后 |
+|--------|--------|--------|
+| 文件组织 | 单文件 3658 行 | CSS + JS 分离 |
+| 流式渲染 | 120ms 节流 | requestAnimationFrame |
+| 重复请求 | 无法取消 | AbortController |
+| 城市搜索 | 实时过滤 | 150ms debounce |
+| 加载状态 | 文字动画 | Skeleton 骨架屏 |
+
+### 3.4 响应式断点
+- > 960px：完整三栏布局
+- 768px-960px：两栏折叠
+- < 480px：单栏纵向堆叠
+
+---
+
+## 4. 负责任 AI — 公平性分析
+
+### 4.1 测试方法
+
+**用例设计**：1,200 条，覆盖 5 群体 × 3 预算 × 5 特殊需求 × 多城市
+
+**评估指标**：
+- **熵值**：H = -Σ p(x) log₂(p(x))，衡量推荐多样性
+- **JS 散度**：0=相同，1=完全不同，衡量分布差异
+- **一致性率**：同一条用例多次运行结果相同的比例
+
+### 4.2 核心结果
+
+| 群体 | 规则系统 | 监督学习 | 目标导向 |
+|------|---------|---------|---------|
+| 单人 | 2.00 | **2.27** | 2.12 |
+| 情侣 | 2.00 | 2.20 | 1.57 |
+| 夫妻 | 2.00 | 2.19 | 1.49 |
+| 朋友 | 2.00 | 2.20 | **2.16** |
+| 家庭 | 2.00 | **2.25** | **0.47** |
+
+**LLM 一致性**：100%（结构化 prompt 下稳定）
+
+### 4.3 关键发现
+
+1. **没有"越智能越公平"** — LLM 对家庭多样性极低（0.47）
+2. **家庭群体是最大风险点** — 80%+ 被推"亲子家庭游"，刻板化严重
+3. **监督系统最均衡** — 群体间差异最小（JS 0.01–0.35）
+4. **规则系统"表面公平"** — 各群体熵值相同但 JS=1.0（完全不同类型）
+
+### 4.4 改进建议
+
+- 短期：LLM prompt 加多样性约束
+- 中期：公平性约束层，输出前检测分布偏差
+- 长期：多模型投票 + 真实用户数据
+
+**负责任 AI 原则**：公平性 ≠ 相同输出，而是"不因群体身份限制选择范围"。
+
+---
+
+## 5. 快速启动
 
 ```bash
-# 1. 安装依赖
 pip install -r requirements_local.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
-
-# 2. 配置 API Keys
 cp .env.example .env
-# 编辑 .env，填入大模型 API Key（通义千问 / DeepSeek 等 OpenAI 兼容接口）
-
-# 3. 启动服务
+# 编辑 .env，填入 OPENAI_API_KEY 和 OPENAI_BASE_URL
 python scripts/start_and_preview.py
-
-# 4. 打开浏览器
-open http://localhost:8000/preview
 ```
 
-停止服务：
-```bash
-lsof -ti:8000 | xargs kill -9
-```
+访问：`http://localhost:8000/preview`
 
 ---
 
-## 三种 AI 系统
-
-| 系统 | 前端名称 | 文件 | 响应时间 | 城市覆盖 | 特点 |
-|------|----------|------|----------|----------|------|
-| 规则系统 | 经典规划 | `systems/rule_based/engine.py` | < 0.1ms | 18 个固定城市 | 完全确定，100% 可解释，无需联网 |
-| 监督学习 | 偏好匹配 | `systems/supervised/inference.py` | < 1ms | 训练分布内 | VotingClassifier，95.4% 准确率，13 维偏好特征 |
-| 目标导向智能体 | 实时规划 | `systems/goal_based/agent_agentic.py` | 30–60s | 全球无限制 | 通义千问 Qwen + Tavily 实时联网搜索 + SSE 流式输出 |
-
----
-
-## 目录结构
-
-```
-projects/
-├── web/
-│   ├── index.html          # 前端界面（单文件 SPA，中英双语）
-│   └── api_server.py       # FastAPI 后端（/api/generate · /api/generate/stream · /api/booking/*）
-├── systems/
-│   ├── rule_based/         # 规则系统（18城市专家规则库）
-│   ├── supervised/         # 监督学习系统（VotingClassifier）
-│   ├── goal_based/         # 目标导向智能体
-│   │   ├── agent_agentic.py    # 主 Agent（Tool Calling，SSE 流式输出）
-│   │   ├── tavily_client.py    # Tavily 实时联网搜索客户端
-│   │   └── local_knowledge_client.py  # ChromaDB 本地知识库
-│   ├── booking/
-│   │   └── booking_engine.py   # 机票/火车票搜索 + 订单管理
-│   └── config.py           # 系统配置（LLM 参数、temperature、max_tokens）
-├── assets/
-│   ├── knowledge_paris.md  # 巴黎知识库
-│   ├── knowledge_tokyo.md  # 东京知识库
-│   ├── knowledge_newyork.md # 纽约知识库
-│   └── orders/orders.json  # 订单持久化
-├── scripts/
-│   ├── start_and_preview.py   # 一键启动脚本
-│   └── import_local_knowledge.py  # 导入知识库到 ChromaDB
-├── .env.example            # 环境变量模板
-├── requirements_local.txt  # 本地依赖
-└── SYSTEM_GUIDE.md         # 完整技术文档
-```
-
----
-
-## 大模型配置
-
-在 `.env` 中配置，支持任意 OpenAI 兼容接口：
-
-```env
-# 通义千问（推荐）
-OPENAI_API_KEY=你的API密钥
-OPENAI_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-MODEL_NAME=qwen-plus
-
-# DeepSeek
-# OPENAI_BASE_URL=https://api.deepseek.com/v1
-# MODEL_NAME=deepseek-chat
-```
-
-模型参数（`systems/config.py`）：
-- `model_name`：默认 `qwen-plus`（可选 `qwen-max` / `qwen-turbo`）
-- `temperature`：0.75（适度随机，行程内容更丰富）
-- `max_tokens`：6000（支持完整多日详细行程输出）
-
-**注意**：系统自动绕过本地代理直连 API，无需额外配置。
-
----
-
-## 主要功能
-
-| 功能 | 说明 |
-|------|------|
-| **SSE 流式输出** | 实时规划行程逐字推流显示，`/api/generate/stream` |
-| **自然语言输入** | 对话框解析自由文本，自动填写出行参数 |
-| **实用工具面板** | 汇率换算（15种货币）· 紧急联系方式（19城市）· 常用短语 |
-| **票务预订** | 机票/火车票搜索（真实数据）+ 未覆盖路线 Tavily 联网兜底 |
-| **国际目的地检测** | 选择海外目的地时自动将"自驾"切换为"飞机" |
-| **我的旅行** | 本地保存行程记录，支持星级评分和出行备注 |
-| **中英双语** | 界面完整中英双语切换，持久化记忆语言选择 |
-
----
-
-## 知识库（可选）
-
-导入知识库可提升巴黎、东京、纽约的行程质量：
-
-```bash
-python scripts/import_local_knowledge.py
-```
-
-其他城市通过 Tavily 实时联网搜索补充信息。
-
----
-
-详细技术文档见 [SYSTEM_GUIDE.md](SYSTEM_GUIDE.md)
-
-*Voya · AI Travel Planner · v3.2 · 2026-04*
+*云游 AI Travel Planning · v3.5 · Responsible Algorithms · emlyon business school · Spring 2026*

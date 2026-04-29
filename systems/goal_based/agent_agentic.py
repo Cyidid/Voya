@@ -5,9 +5,6 @@
   2. 是否需要查询本地知识库
   3. 何时开始生成行程
   4. 是否需要补充细节
-
-这与课程要求的 Goal-Based 系统一致：
-  "The AI is given a high-level goal and freedom to determine its own process and solution."
 """
 
 import os
@@ -31,9 +28,9 @@ except ImportError:
 try:
     from systems.config import GOAL_BASED_CONFIG
 except ImportError:
-    GOAL_BASED_CONFIG = {"use_real_llm": True, "model_name": "doubao-seed-1-8-251228"}
+    GOAL_BASED_CONFIG = {"use_real_llm": True, "model_name": "qwen3.6-plus"}
 
-# ── Agent 系统提示词 ──────────────────────────────────────────────
+# ── Agent 系统提示词 ──
 AGENT_SYSTEM_PROMPT = """你是一位专业的全球旅游规划顾问，擅长为不同类型的旅行者制定个性化、详尽、实用的旅行行程。你的规划必须融合天气、人员组成、兴趣偏好和实用信息四个核心维度，避免千篇一律的通用模板。
 
 【工具使用策略】
@@ -104,8 +101,10 @@ AGENT_SYSTEM_PROMPT = """你是一位专业的全球旅游规划顾问，擅长�
 - 餐厅名称 — 菜系/特色，人均约 XX 元
   - 推荐菜品 / 点单建议（是否儿童友好/无障碍）
 
+> 🚇 **前往午餐**：写明从上午最后一个景点到餐厅的交通方式（地铁线路+站名/步行分钟数/打车费用区间），并注明所需时间，例如：地铁 X 线 → Y 站（约 12 分钟，¥4）/ 步行约 8 分钟 / 打车约 ¥15–25
+
 **下午**
-- （同上午格式）
+- （同上午格式，每个景点结束后同样附上前往下一站的交通说明）
 
 **晚餐推荐**
 - 餐厅名称 — 特色，人均约 XX 元
@@ -143,6 +142,7 @@ AGENT_SYSTEM_PROMPT = """你是一位专业的全球旅游规划顾问，擅长�
 ---
 
 【内容质量要求】
+- **景点间交通必须写明**：每个活动/景点结束后，用 `> 🚇 **前往下一站**：` 格式注明到下一个景点/餐厅的交通方式（地铁/步行/打车），包含线路、站名、时间、参考费用。这是强制要求，不可省略。
 - 每日安排具体到时间段（上午/午餐/下午/晚餐/晚上），不要只列景点名称
 - 餐厅推荐要有菜系、人均消费、推荐菜品，不要泛泛而谈
 - 票价、时长等数据尽量精确，来自工具搜索结果优先
@@ -159,7 +159,7 @@ AGENT_SYSTEM_PROMPT = """你是一位专业的全球旅游规划顾问，擅长�
 
 【输出要求】请直接利用自身知识生成行程。内容越详实越好——每天景点、餐饮、交通、小贴士都要写充分，不要因为篇幅限制而截断或跳过任何天数。模型本身具备丰富的全球旅行信息，请充分发挥，输出完整的高质量方案。"""
 
-# ── 工具定义（function calling 格式）────────────────────────────────────
+# ── 工具定义（function calling 格式）──
 TOOLS = [
     {
         "type": "function",
@@ -284,10 +284,10 @@ class TravelPlanningAgent:
     _cache_max_size: int = 30
 
     def __init__(self, enable_knowledge: bool = True, enable_web_search: bool = True):
-        self.model_name = GOAL_BASED_CONFIG.get("model_name", "doubao-seed-1-8-251228")
-        self.temperature = GOAL_BASED_CONFIG.get("temperature", 0.7)
-        self.max_tokens = GOAL_BASED_CONFIG.get("max_tokens", 2000)
-        self.max_tool_rounds = 1 # Agent 最多调用工具的轮数（速度优先，默认 1 轮）
+        self.model_name = GOAL_BASED_CONFIG.get("model_name", "qwen3.6-plus")
+        self.temperature = GOAL_BASED_CONFIG.get("temperature", 0.75)
+        self.max_tokens = GOAL_BASED_CONFIG.get("max_tokens", 8192)
+        self.max_tool_rounds = 3 # Agent 最多调用工具的轮数
         self.agent_steps: list = [] # 记录 Agent 的决策过程
 
         # 初始化 LLM 客户端
@@ -348,7 +348,13 @@ class TravelPlanningAgent:
             result = f"[未知工具: {tool_name}]"
 
         elapsed = round(time.time() - t0, 2)
-        preview = result[:100].replace("\n", " ")
+        # 生成可读 preview：知识库显示"城市 · 查询关键词"，搜索显示查询词
+        if tool_name == "query_knowledge_base":
+            preview = f"{args.get('city', '')} · {args.get('query', '')}".strip(" ·")
+        elif tool_name == "search_web":
+            preview = args.get("query", result[:80].replace("\n", " "))
+        else:
+            preview = result[:100].replace("\n", " ")
         logger.debug(f"{tool_name} 完成 ({elapsed}s)")
 
         self.agent_steps.append({
@@ -395,18 +401,15 @@ class TravelPlanningAgent:
         tool_rounds = 0
 
         # ── Agent 循环 ───────────────────────────────────────────────────
-        # extra_body: 关闭扩展思维链（Qwen3 / 豆包系列），大幅降低延迟
-        _extra = {"enable_thinking": False}
 
         while tool_rounds <= self.max_tool_rounds:
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=messages,
                 tools=TOOLS,
-                tool_choice="none",   # 直接生成，不调用外部工具，速度最快
+                tool_choice="none",
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
-                extra_body=_extra,
             )
 
             choice = response.choices[0]

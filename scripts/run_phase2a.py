@@ -23,17 +23,14 @@ JSON_OUT = os.path.join(RESULTS_DIR, "phase2a_outputs.json")
 
 
 def format_itinerary(result: dict) -> str:
-    """将结构化行程格式化为可读文本"""
+    """将行程结果格式化为可读文本"""
     lines = []
     meta = result.get("metadata", {})
     lines.append(f"[{meta.get('city', '')} {meta.get('days', '')}天 "
                  f"预算:{meta.get('budget', '')} 兴趣:{','.join(meta.get('interests', []))}]")
-    for day_key, day_plan in result.get("itinerary", {}).items():
-        lines.append(f"  {day_plan.get('theme', day_key)}")
-        for period in ("morning", "afternoon", "evening"):
-            act = day_plan.get(period, {})
-            if act:
-                lines.append(f"    {period}: {act.get('activity', '')} (¥{act.get('cost_estimate', 0)})")
+    itinerary = result.get("itinerary", "")
+    if isinstance(itinerary, str):
+        lines.append(itinerary)
     lines.append(f"  预算合计: ¥{result.get('total_budget_estimate', 0)}")
     return "\n".join(lines)
 

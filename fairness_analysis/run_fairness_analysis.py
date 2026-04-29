@@ -7,7 +7,6 @@
 3. 比较相同条件下不同群体的推荐差异
 4. 跨三系统对比响应一致性
 
-不修改任何推荐算法代码。
 """
 
 import json
@@ -52,27 +51,37 @@ RULE_BASED_TYPES = {
 
 # ── 测试用例生成 ─────────────────────────────────────────────
 
+# 群体与特殊条件的有效组合（排除语义不合理的搭配）
+# 单人+有儿童、情侣+有老人等组合在现实中不成立
+VALID_SPECIALS = {
+    "单人": ["无", "轮椅友好"],           # 2 种
+    "情侣": ["无"],                       # 1 种
+    "夫妻": ["无", "有儿童"],             # 2 种
+    "朋友": ["无"],                       # 1 种
+    "家庭": ["无", "有儿童", "有老人", "轮椅友好"],  # 4 种
+}
+
 INTERESTS = ["文化", "自然", "美食", "购物", "历史", "夜生活", "户外"]
 CITIES = ["巴黎", "东京", "纽约", "伦敦", "罗马", "首尔", "迪拜",
            "曼谷", "新加坡", "悉尼", "巴塞罗那", "阿姆斯特丹", "维也纳"]
 BUDGETS = ["低", "中", "高"]
 GROUPS = ["单人", "情侣", "夫妻", "朋友", "家庭"]
 TRAVEL_MODES = ["飞机", "高铁", "自驾", "邮轮"]
-SPECIALS = ["无", "有儿童", "有老人", "轮椅友好"]
 
 
 def generate_test_cases(n: int = 1200, seed: int = 2026) -> List[dict]:
     """
-    生成 n 条多样化测试用例，覆盖各群体组合。
-    保证每个 (group, special) 组合至少有一定数量的样本。
+    生成 n 条多样化测试用例，覆盖各群体的合理组合。
+    每个群体分配 n/5 条，在其有效特殊条件组合中均分。
     """
     random.seed(seed)
     cases = []
+    per_group = n // len(GROUPS)  # 1200 // 5 = 240
 
-    # 分层采样：确保每个 (group, special) 组合有足够样本
     for group in GROUPS:
-        for special in SPECIALS:
-            per_combo = max(10, n // (len(GROUPS) * len(SPECIALS)))
+        specials = VALID_SPECIALS[group]
+        per_combo = per_group // len(specials)
+        for special in specials:
             for _ in range(per_combo):
                 city = random.choice(CITIES)
                 days = random.randint(1, 7)
@@ -99,30 +108,6 @@ def generate_test_cases(n: int = 1200, seed: int = 2026) -> List[dict]:
                         "special": special,
                     },
                 })
-
-    # 不足 n 条的补充随机样本
-    while len(cases) < n:
-        city = random.choice(CITIES)
-        days = random.randint(1, 7)
-        budget = random.choice(BUDGETS)
-        group = random.choice(GROUPS)
-        num_people = random.randint(1, 8)
-        if group in ("情侣", "夫妻"):
-            num_people = min(num_people, 2)
-        elif group == "家庭":
-            num_people = max(num_people, 2)
-        special = random.choice(SPECIALS)
-        mode = random.choice(TRAVEL_MODES)
-        interests = random.sample(INTERESTS, random.randint(1, 4))
-        cases.append({
-            "id": f"TEST_{len(cases)+1:05d}",
-            "metadata": {
-                "city": city, "days": days, "budget": budget,
-                "interests": interests, "group": group,
-                "num_people": num_people, "travel_mode": mode,
-                "special": special,
-            },
-        })
 
     return cases[:n]
 

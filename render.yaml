@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: voya-travel-planner
+    env: python
+    region: singapore
+    plan: free
+    buildCommand: pip install -r requirements_local.txt
+    startCommand: uvicorn web.api_server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_BASE_URL
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: LOG_LEVEL
+        value: INFO
+      - key: ENABLE_KNOWLEDGE
+        value: "true"
+      - key: ENABLE_WEB_SEARCH
+        value: "true"

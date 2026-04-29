@@ -313,7 +313,7 @@ def main():
     print("=" * 60)
 
     # 加载测试用例
-    test_cases_path = "/workspace/projects/assets/test_cases.json"
+    test_cases_path = os.path.join(os.path.dirname(BASE_DIR), "assets", "test_cases.json")
     evaluator = ItineraryEvaluator(test_cases_path)
 
     # 模拟三个系统的输出（实际使用时替换为真实输出）
@@ -340,7 +340,7 @@ def main():
     report = evaluator.generate_comparison_report(system_results)
 
     # 保存报告
-    report_path = "/workspace/projects/assets/comparison_report.md"
+    report_path = os.path.join(os.path.dirname(BASE_DIR), "assets", "comparison_report.md")
     with open(report_path, 'w', encoding='utf-8') as f:
         f.write(report)
 
