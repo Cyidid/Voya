@@ -86,7 +86,7 @@ projects/
 │       └── booking_engine.py        — 机票/火车票搜索 + 订单管理
 ├── assets/
 │   ├── knowledge_paris.md   ─┐
-│   ├── knowledge_tokyo.md    │ ChromaDB 知识库源文件（25城市）
+│   ├── knowledge_tokyo.md    │ ChromaDB 知识库源文件（22城市）
 │   └── ...                  ─┘
 ├── scripts/
 │   ├── import_local_knowledge.py    — 导入知识库到 ChromaDB
@@ -260,7 +260,7 @@ _build_itinerary()  — 按推荐类型生成行程
     │
     ├─ 阶段1：预查询（LLM 生成前执行）
     │    ├── query_knowledge_base(city, query)
-    │    │       → ChromaDB 本地知识库（25城市，294条文档）
+    │    │       → ChromaDB 本地知识库（22城市）
     │    │       → 注入本地 POI/价格/贴士（最多 1800 字符）
     │    └── search_web(query, topic)
     │            → Tavily API 实时搜索（中文关键词）
@@ -313,7 +313,7 @@ query_knowledge_base(city, query)  # ChromaDB 本地知识库查询
 
 **国际目的地（20个）**：巴黎(CDG)、东京(NRT)、纽约(JFK)、伦敦(LHR)、罗马(FCO)、悉尼(SYD)、巴塞罗那(BCN)、曼谷(BKK)、新加坡(SIN)、首尔(ICN)、迪拜(DXB)、阿姆斯特丹(AMS)、维也纳(VIE)、布拉格(PRG)、伊斯坦布尔(IST)、里斯本(LIS)、普吉岛(HKT)、马尔代夫(MLE)、冰岛(KEF)、开罗(CAI)
 
-**确定性定价**：`_price()` 函数使用路线+日期的 MD5 哈希作为随机种子，相同查询永远返回相同结果。
+**确定性定价**：`_price()` 使用路线+日期的 MD5 哈希作为随机种子，相同查询永远返回相同结果。价格还受 `_date_multiplier()` 系数影响：黄金周（五一/国庆/春节）×1.55、暑假×1.40、清明/端午/中秋×1.30、周末×1.20、平日×1.0。余票数量同样随出行日期动态收紧，节假日余票极少。
 
 **Tavily 联网兜底**：未覆盖路线自动启用 Tavily 搜索，返回 `type="web_info"` 参考信息卡，前端明确标注"网络参考信息"，不可直接预订。
 

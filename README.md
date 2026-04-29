@@ -34,7 +34,7 @@
 - **后端**：FastAPI + Python 3.12，SSE 流式输出
 - **前端**：原生 HTML / CSS / JS，无框架，marked.js 渲染 Markdown
 - **AI**：OpenAI 兼容 API（豆包 / 通义千问 / DeepSeek）
-- **知识库**：ChromaDB 本地向量数据库（22 城市，294 条文档）
+- **知识库**：ChromaDB 本地向量数据库（22 城市）
 - **联网搜索**：Tavily API
 
 ---

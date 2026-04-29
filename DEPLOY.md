@@ -240,30 +240,8 @@ echo "服务已启动，访问 http://服务器IP:8000/preview"
 
 ---
 
-## 项目文件结构速览
-
-```
-voya/
-├── web/
-│   ├── api_server.py          # FastAPI 后端主文件
-│   └── assets/
-│       ├── app.js             # 前端逻辑
-│       ├── style.css          # 样式
-│       └── index.html         # 主页面
-├── systems/
-│   ├── rule_based/            # 规则引擎
-│   ├── supervised/            # 机器学习模型
-│   └── goal_based/            # LLM Agent
-├── assets/
-│   └── knowledge_db/          # ChromaDB 向量知识库（22城市）
-├── scripts/
-│   └── start_and_preview.py   # 一键启动脚本
-├── requirements_local.txt     # Python 依赖
-├── .env.example               # 环境变量模板
-├── Procfile                   # Railway/Heroku 部署配置
-└── render.yaml                # Render 部署配置
-```
-
 ---
+
+> 完整项目结构与技术文档见 **[SYSTEM_GUIDE.md](SYSTEM_GUIDE.md)**。
 
 *云游 Voya · AI Travel Planning · emlyon business school · Spring 2026*

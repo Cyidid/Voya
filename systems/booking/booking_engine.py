@@ -369,10 +369,16 @@ def _date_multiplier(date_str: str) -> float:
         # 旺季：暑假 7-8月，元旦
         if m in (7, 8) or (m == 1 and d <= 3):
             return 1.40
-        # 小旺季：清明(4/3-6)、端午(6/10-12 approx)、中秋(9/13-15 approx)
-        if m == 4 and 3 <= d <= 6:
+        # 小旺季：清明(4/3-6)、端午(6/10-12)、中秋(9/13-15)、春节后(2月中下旬)、国庆后(10月中下旬)
+        if m == 4 and 3 <= d <= 6:      # 清明
             return 1.30
-        if m in (2, 10):
+        if m == 6 and 10 <= d <= 12:    # 端午
+            return 1.30
+        if m == 9 and 13 <= d <= 15:    # 中秋
+            return 1.30
+        if m == 2 and 11 <= d <= 28:    # 春节后尾声
+            return 1.30
+        if m == 10 and d >= 8:          # 国庆后
             return 1.30
         # 周末
         if dt.weekday() >= 5:
