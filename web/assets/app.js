@@ -1035,11 +1035,12 @@ function renderSide(data, params) {
   const _nearIntl = new Set(['东京','首尔','曼谷','新加坡','普吉岛','马尔代夫',
     '巴厘岛','京都','大阪','香港','台北']);
   // 中程国际（6-11h，中东/澳洲/南亚）
-  const _midIntl  = new Set(['迪拜','开罗','马来西亚','吉隆坡']);
-  // 远程国际（10h+，欧美/澳洲/非洲）
+  const _midIntl  = new Set(['迪拜','开罗','马来西亚','吉隆坡','悉尼','墨尔本',
+    '伊斯坦布尔','阿布扎比','多哈','科伦坡','孟买']);
+  // 远程国际（11h+，欧美/非洲）
   const _farIntl  = new Set(['巴黎','伦敦','罗马','巴塞罗那','阿姆斯特丹','维也纳',
-    '布拉格','伊斯坦布尔','里斯本','冰岛','哥本哈根','苏黎世','纽约','洛杉矶',
-    '悉尼','约翰内斯堡','圣保罗','墨西哥城']);
+    '布拉格','里斯本','冰岛','哥本哈根','苏黎世','纽约','洛杉矶','芝加哥',
+    '约翰内斯堡','圣保罗','墨西哥城','法兰克福']);
 
   const isIntl   = _nearIntl.has(params.city) || _midIntl.has(params.city) || _farIntl.has(params.city);
   const isFar    = _farIntl.has(params.city);
@@ -1080,6 +1081,7 @@ function renderSide(data, params) {
         <div><div class="bh-label">${_L('人均预算参考','Est. per person')}</div><div class="bh-value">¥${perPerson.toLocaleString()}</div></div>
         <div style="text-align:right"><div class="bh-label">${_L('总预算','Total budget')}</div><div class="bh-sub" style="font-size:13px;font-weight:700;color:var(--text2)">¥${budgetTotal.toLocaleString()}</div></div>
       </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:6px;line-height:1.5">${_L('⚠ 仅供参考，机票价格波动较大，实际费用以票务搜索结果为准。','⚠ Reference only. Flight prices vary; check the booking section for real prices.')}</div>
     </div>
   </div>`;
 

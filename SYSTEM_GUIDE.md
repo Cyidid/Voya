@@ -101,38 +101,12 @@ projects/
 
 ## 4. 快速启动
 
-### 安装与配置
+> 安装依赖、配置 API Key、启动服务、公网发布的完整步骤见 **[DEPLOY.md](DEPLOY.md)**。
 
 ```bash
-pip install -r requirements_local.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
-cp .env.example .env
-# 编辑 .env，填入 OPENAI_API_KEY 和 OPENAI_BASE_URL
-```
-
-### 环境变量
-
-| 变量 | 必填 | 说明 |
-|------|------|------|
-| `OPENAI_API_KEY` | 必填 | 大模型 API Key（通义千问 / DeepSeek 等） |
-| `OPENAI_BASE_URL` | 必填 | LLM 接口地址 |
-| `MODEL_NAME` | 可选 | 默认 `qwen3.6-plus` |
-| `TAVILY_API_KEY` | 可选 | 联网搜索；不填时实时规划仅用 LLM 参数知识 |
-
-### 启动服务
-
-```bash
-python scripts/start_and_preview.py        # 一键启动（推荐）
-uvicorn web.api_server:app --port 8000 --reload  # 热重载开发模式
-```
-
-访问：`http://localhost:8000/preview`
-
-### 单独测试各系统
-
-```bash
-python systems/rule_based/engine.py
-python systems/supervised/inference.py      # 首次运行约 1 分钟（训练模型）
-python systems/goal_based/agent_agentic.py  # 需要 .env 配置
+# 一行快速启动（详细说明见 DEPLOY.md）
+pip install -r requirements_local.txt && cp .env.example .env
+python scripts/start_and_preview.py   # 访问 http://localhost:8000/preview
 ```
 
 ---
