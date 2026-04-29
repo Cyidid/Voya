@@ -540,12 +540,17 @@ async def generate_itinerary(req: TravelRequest):
 @app.post("/api/generate/stream")
 async def generate_stream(req: TravelRequest):
     """
-    SSE 流式接口（goal_based 专用）。
+    SSE 流式接口（三种系统均支持）。
     每行格式：data: <JSON>\\n\\n
-      - 文本块：{"chunk": "..."}
-      - 完成：  {"done": true, "processing_time": X, "tool_rounds": 0, "cache_hit": false}
-      - 错误：  {"error": "..."}
-    非 goal_based 系统直接返回一个 done 事件（秒返）。
+      - 文本块：      {"chunk": "..."}
+      - 工具日志字符：{"tool_char": "..."}
+      - 完成(goal):  {"done": true, "processing_time": X, "tool_rounds": N, "cache_hit": false, "agent_steps": [...]}
+      - 完成(rule):  {"done": true, "itinerary": "...", "processing_time": X, "tool_rounds": 0, "cache_hit": false, "result_meta": {...}}
+      - 完成(sup):   {"done": true, "processing_time": X, "tool_rounds": 0, "cache_hit": false, "result_meta": {...}}
+      - 错误：        {"error": "..."}
+    rule_based 毫秒响应，直接一次性返回 done（含 itinerary）；
+    supervised 逐行流式（每3行一chunk，10ms延迟）；
+    goal_based 真正流式，同时后台并行执行工具调用。
     """
     num_people = 2 if req.group in ("情侣", "夫妻") else (req.num_people or 2)
     origin_prefix = f"从{req.origin}出发，" if req.origin else ""

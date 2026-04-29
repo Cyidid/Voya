@@ -432,9 +432,13 @@ SSE 流式接口，请求体与 `/api/generate` 相同。
 | 事件 | 结构 |
 |------|------|
 | 文本 chunk | `{"chunk": "..."}` |
-| 完成（goal_based） | `{"done": true, "processing_time": X, "tool_rounds": N, "agent_steps": [...]}` |
-| 完成（supervised/rule_based） | `{"done": true, "result_meta": {...}}` |
+| 工具日志字符 | `{"tool_char": "..."}` |
+| 完成（goal_based） | `{"done": true, "processing_time": X, "tool_rounds": N, "cache_hit": false, "agent_steps": [...]}` |
+| 完成（rule_based） | `{"done": true, "itinerary": "...", "processing_time": X, "tool_rounds": 0, "cache_hit": false, "result_meta": {...}}` |
+| 完成（supervised） | `{"done": true, "processing_time": X, "tool_rounds": 0, "cache_hit": false, "result_meta": {...}}` |
 | 错误 | `{"error": "..."}` |
+
+> `result_meta` 包含：`recommendation_type_zh`、`model_confidence`、`top_features`、`transport_tip`、`city_tips`、`weather_note`、`model_accuracy`、`dataset_size`、`proba_distribution`
 
 ### POST `/api/chat`
 
@@ -442,7 +446,15 @@ SSE 流式接口，请求体与 `/api/generate` 相同。
 { "role": "user", "content": "我想去巴黎玩5天，喜欢文化，预算充裕", "agent_type": "goal_based" }
 ```
 
-自动解析城市/天数/预算/兴趣/出行类型等参数。`parse_warning` 字段：未能识别目的地时提示（不静默回退）。
+**响应字段**：
+
+| 字段 | 说明 |
+|------|------|
+| `role` | `"assistant"` |
+| `content` | Markdown 格式行程文本 |
+| `city` / `days` / `budget` / `interests` / `group` | 从自然语言中解析出的参数，可直接回填表单 |
+| `city_recognized` | 布尔值，是否成功识别目的地 |
+| `parse_warning` | 未识别到目的地时的提示（不静默回退，改用默认值并告知用户） |
 
 ### POST `/api/booking/search`
 
@@ -471,7 +483,7 @@ SSE 流式接口，请求体与 `/api/generate` 相同。
 | **确定性** | 完全确定：相同输入永远相同输出 | 确定（推理阶段）：模型权重固定，预测可复现 | 非确定：temperature=0.75，每次生成略有差异 |
 | **数据依赖** | 无数据依赖：规则人工编写，无训练集 | 合成数据：10000条程序生成样本+15%标签噪声 | 实时数据：Tavily 联网 + ChromaDB 知识库 |
 | **幻觉风险** | 无（规则库确定性） | 低（分类+模板，不自由生成文字） | 存在（LLM 自由生成，可能产生不准确信息） |
-| **城市覆盖** | 固定25城，超出回退 | 25城预算数据，模型泛化能力有限 | 全球无限制 |
+| **城市覆盖** | 固定25城，超出回退至巴黎 | 7城特征编码，其余城市回退通用模板 | 全球无限制 |
 | **响应速度** | < 0.1ms | < 1ms（单例） | 30–60s（缓存命中即时） |
 
 ---
