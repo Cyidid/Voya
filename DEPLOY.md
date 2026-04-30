@@ -166,6 +166,8 @@ git push origin main
 
 5. 点击 **Deploy** → 等待约 3 分钟 → 获得公网地址（如 `https://voya-xxxx.up.railway.app`）
 
+> **关于端口**：Railway 会通过环境变量 `$PORT` 将一个内部端口（通常是 8080）注入容器，uvicorn 监听该端口。Railway 在外部自动将公网域名的 443（HTTPS）流量转发到这个内部端口，访问者只需使用公网域名，无需关心端口号。
+
 **费用**：每月 $5 免费额度，足够演示使用。
 
 ---
