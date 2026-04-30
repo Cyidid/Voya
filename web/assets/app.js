@@ -378,8 +378,8 @@ function _getStartDate() {
 async function doSearch() {
   const destEl  = document.getElementById('destInput');
   const dest    = destEl.dataset.zh || destEl.value.trim();
-  if (!dest) { toast('请输入目的地', 'err'); return; }
-  if (busy) return;
+  if (!dest) { toast(_L('请输入目的地', 'Please enter a destination'), 'err'); return; }
+  if (busy) { _abortAndRestart(); return; }
 
   const originEl = document.getElementById('originInput');
   const origin   = originEl.dataset.zh || originEl.value.trim();
@@ -420,7 +420,7 @@ async function doChat() {
   // 读取表单当前值（已被回填）
   const destEl2   = document.getElementById('destInput');
   const dest      = destEl2.dataset.zh || destEl2.value.trim();
-  if (!dest) { toast('未识别目的地，请手动填写后点击「开始规划」', 'err'); return; }
+  if (!dest) { toast(_L('未识别目的地，请手动填写后点击「开始规划」', 'Destination not recognized — please fill in manually'), 'err'); return; }
 
   const originEl2 = document.getElementById('originInput');
   const origin    = originEl2.dataset.zh || originEl2.value.trim();
@@ -722,10 +722,9 @@ function abortCurrent() {
 // 用户重复点击时：取消旧请求 + 重新开始
 function _abortAndRestart() {
   abortCurrent();
-  // 清理 loading 状态，让下一次请求能正常启动
   setLoad(false);
   busy = false;
-  toast('已取消上次请求，重新开始', 'ok');
+  toast(_L('已取消，请重新点击「开始规划」', 'Cancelled — click Plan again to restart'), 'ok');
 }
 
 async function callAPI(params, userText) {
@@ -881,7 +880,7 @@ async function callAPIStream(params, userText) {
             toast(_L(`「${params.city}」暂不在经典规划覆盖范围内，已为您展示「${syntheticData.city_used}」的行程作为参考。`,
                      `"${params.city}" is not in Classic Planner's coverage. Showing "${syntheticData.city_used}" instead.`), 'warn');
           } else {
-            toast('行程生成成功', 'ok');
+            toast(_L('行程生成成功', 'Itinerary generated'), 'ok');
           }
           // 保存到历史记录
           _histSave({ city: params.city, group: params.group, budget: params.budget,
@@ -896,7 +895,7 @@ async function callAPIStream(params, userText) {
       // 用户主动取消，不报错
       addMsg('a', '已取消请求');
     } else if (streamStarted) {
-      toast(`生成中断：${e.message}`, 'err');
+      toast(_L(`生成中断：${e.message}`, `Interrupted: ${e.message}`), 'err');
     } else {
       setLoad(false);
       toast(e.message, 'err');
@@ -936,7 +935,7 @@ function _updateResultChips(params, data) {
     <span class="chip">${params.group} · ${params.num_people}人</span>
     ${params.origin ? `<span class="chip">${params.origin}出发</span>` : ''}
     ${data.processing_time ? `<span class="chip">${parseFloat(data.processing_time).toFixed(1)}s</span>` : ''}
-    ${params.agent_type === 'goal_based' ? '<span class="chip web">直接生成</span>' : ''}
+    ${params.agent_type === 'goal_based' ? '<span class="chip web">联网生成</span>' : ''}
     ${params.agent_type === 'supervised' ? '<span class="chip ml">ML模型</span>' : ''}
     ${params.agent_type === 'rule_based' ? '<span class="chip info">规则引擎</span>' : ''}
   `;
@@ -987,6 +986,10 @@ const _CLIMATE = {
   '里斯本':{spring:'温暖，15-22°C，最适合徒步',summer:'炎热干燥，28-35°C',autumn:'温和多雨，16-22°C',winter:'温和，10-15°C，欧洲最温暖冬天之一'},
   '悉尼':  {spring:'南半球春，18-24°C(9-11月)，花朵盛开',summer:'南半球夏，26-32°C(12-2月)，海滩旺季',autumn:'南半球秋，15-22°C(3-5月)，宜人少雨',winter:'南半球冬，10-16°C(6-8月)，凉爽'},
   '纽约':  {spring:'温和，10-20°C，中央公园樱花',summer:'炎热潮湿，25-33°C，户外活动密集',autumn:'凉爽宜人，叶色金黄，最佳旅游季',winter:'寒冷多雪，-2-6°C，圣诞氛围浓'},
+  '广州':  {spring:'温暖多雨，18-26°C，回南天潮湿',summer:'高温多雨，30-37°C，注意防暑防晒',autumn:'秋高气爽，22-30°C，最佳旅游季',winter:'温和少雨，10-18°C，偶有寒潮'},
+  '开罗':  {spring:'干燥温暖，18-30°C，沙漠风偶发',summer:'极热干燥，35-43°C，建议早晨或傍晚出行',autumn:'气温渐降，22-33°C，旅游旺季',winter:'最佳旅游季，10-20°C，夜间较凉'},
+  '哥本哈根':{spring:'清凉多风，6-13°C，日照渐长',summer:'温和宜人，16-22°C，北欧最佳出游季',autumn:'凉爽多雨，8-14°C，童话气息浓',winter:'寒冷黑暗，0-4°C，圣诞市集热闹'},
+  '苏黎世':{spring:'清新多变，7-15°C，阿尔卑斯积雪尚存',summer:'温暖舒适，18-26°C，湖滨游泳胜地',autumn:'色彩斑斓，8-16°C，葡萄酒节季',winter:'寒冷多雪，-1-4°C，滑雪旺季'},
 };
 function _monthSeason(m) { return m<=2||m===12?'winter':m<=5?'spring':m<=8?'summer':'autumn'; }
 const _SEASON_ZH = {spring:'春季',summer:'夏季',autumn:'秋季',winter:'冬季'};
@@ -1015,6 +1018,10 @@ const _VISA = {
   '里斯本':'🔴 申根签证 · 建议提前 3 个月申请',
   '悉尼':'🟡 ETA 电子旅游签(约 AUD 20)',
   '纽约':'🔴 美国 B2 旅游签证(约 ¥1,200 + 面签)',
+  '广州':'🟢 国内城市，无需签证',
+  '开罗':'🟡 电子签证(e-Visa) · 网申约 $25，建议提前申请',
+  '哥本哈根':'🔴 申根签证 · 建议提前 3 个月申请',
+  '苏黎世':'🔴 申根签证 · 建议提前 3 个月申请',
 };
 const _MODE_EN   = {'飞机':'Flight','高铁':'High-speed Rail','火车':'Train','自驾':'Self-drive','游轮':'Cruise'};
 const _BUDGET_EN = {'低':'Economy','中':'Comfort','高':'Luxury'};
@@ -1713,8 +1720,7 @@ async function searchTickets() {
     box.innerHTML = webBanner + tickets.map(t => renderTicket(t)).join('');
   } catch (e) {
     box.innerHTML = `<div style="text-align:center;padding:24px;color:#e74c3c">
-      <div style="font-size:13px;font-weight:700;color:#e74c3c;margin-bottom:8px;letter-spacing:.5px">搜索失败</div>
-      <div style="font-weight:600;margin-bottom:4px;display:none">搜索失败</div>
+      <div style="font-size:13px;font-weight:700;color:#e74c3c;margin-bottom:8px;letter-spacing:.5px">${_L('搜索失败','Search failed')}</div>
       <div style="font-size:12px;color:var(--text3)">${e.message}</div>
     </div>`;
   }
