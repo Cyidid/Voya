@@ -26,7 +26,7 @@ from starlette.concurrency import iterate_in_threadpool
 from pydantic import BaseModel, Field
 import uvicorn
 
-# ── 日志 ────────────────────────────────────────────────────────
+# 日志
 _log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
 os.makedirs(_log_dir, exist_ok=True)
 logging.basicConfig(
@@ -39,7 +39,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ── 导入三大系统 ─────────────────────────────────────────────────
+# 导入三大系统
 from systems.rule_based.engine import generate as rule_based_generate
 from systems.supervised.inference import generate as supervised_generate
 
@@ -61,13 +61,13 @@ except Exception as e:
     def goal_based_generate(test_case: dict, **kw) -> dict:
         raise RuntimeError("Goal-Based Agent 不可用，请检查 OPENAI_API_KEY 配置")
 
-# ── 导入票务引擎 ─────────────────────────────────────────────────
+# 导入票务引擎
 from systems.booking.booking_engine import (
     search_tickets, create_order, get_orders, get_order, cancel_order,
     DOMESTIC_CITIES, INTL_HUB,
 )
 
-# ── Tavily 联网搜索（票务兜底）──────────────────────────────────────
+#  Tavily 联网搜索（票务兜底）──────────────────────────────────────
 try:
     from systems.goal_based.tavily_client import TavilySearchClient as _TavilyClient
     _tavily = _TavilyClient()
@@ -110,7 +110,7 @@ async def _search_flights_online(origin: str, dest: str, date: str) -> list[dict
 # 票务支持的城市集合（国内 + 国际）
 KNOWN_CITIES: frozenset = frozenset(DOMESTIC_CITIES) | frozenset(INTL_HUB.keys())
 
-# ── 统计 ─────────────────────────────────────────────────────────
+# 统计
 _stats = {
     "total": 0, "success": 0, "failed": 0,
     "rule_based": 0, "supervised": 0, "goal_based": 0,
@@ -118,8 +118,7 @@ _stats = {
 }
 
 
-# ── 结构化错误响应助手 ────────────────────────────────────────────
-
+# 结构化错误响应助手
 def _api_error(status: int, code: str, user_msg: str, detail: str = "") -> HTTPException:
     """返回统一格式的结构化错误，避免裸 Python 异常泄露给前端。"""
     return HTTPException(
@@ -156,7 +155,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── 静态文件（CSS/JS）─────────────────────────────────────
+#  静态文件（CSS/JS）─────────────────────────────────────
 _web_dir = os.path.dirname(os.path.abspath(__file__))
 _assets_dir = os.path.join(_web_dir, "assets")
 app.mount("/assets", StaticFiles(directory=_assets_dir), name="assets")
@@ -177,8 +176,7 @@ async def track_requests(request: Request, call_next):
         raise
 
 
-# ── 格式化输出 ───────────────────────────────────────────────────
-
+# 格式化输出
 # 城市货币信息：(货币代码, 货币名称, 1货币=?人民币)
 _CITY_CURRENCY: dict[str, tuple[str, str, float]] = {
     "巴黎":     ("EUR", "欧元",        7.80),
@@ -279,10 +277,10 @@ def _format_output(result: dict, agent_type: str) -> str:
 
     lines: list[str] = []
 
-    # ── 标题 ──────────────────────────────────────────────────────
+    # 标题
     lines.append(f"# {city} · {days} 日{rec_zh}\n")
 
-    # ── 行程概览 ──────────────────────────────────────────────────
+    # 行程概览
     lines.append("## 行程概览\n")
     origin_str = f"从 **{origin}** 出发 · " if origin else ""
     special_str = f" · 特别需求：{special}" if special and special != "无" else ""
@@ -301,7 +299,7 @@ def _format_output(result: dict, agent_type: str) -> str:
 
     lines.append("---\n")
 
-    # ── 每日行程 ──────────────────────────────────────────────────
+    # 每日行程
     for day_key in sorted(itinerary.keys()):
         day    = itinerary[day_key]
         day_num = day_key.replace("day_", "")
@@ -361,26 +359,26 @@ def _format_output(result: dict, agent_type: str) -> str:
 
         lines.append("---\n")
 
-    # ── 住宿建议 ──────────────────────────────────────────────────
+    # 住宿建议
     lines.append("## 住宿建议\n")
     lines.append(
         f"推荐选择 **{_BUDGET_HOTEL.get(budget, '舒适型酒店')}**，"
         f"优先考虑靠近主要景点或市中心的位置，节省通勤时间，行程更从容。\n"
     )
 
-    # ── 交通建议 ──────────────────────────────────────────────────
+    # 交通建议
     if transport_tip:
         lines.append("## 交通建议\n")
         lines.append(f"{transport_tip}\n")
 
-    # ── 当地贴士 ──────────────────────────────────────────────────
+    # 当地贴士
     if city_tips:
         lines.append("## 当地贴士\n")
         for tip in city_tips:
             lines.append(f"- {tip}")
         lines.append("")
 
-    # ── 预算参考 ──────────────────────────────────────────────────
+    # 预算参考
     lines.append("## 预算参考\n")
     lines.append("| 费用项目 | 预估（人民币）|")
     lines.append("|---------|------------|")
@@ -392,7 +390,7 @@ def _format_output(result: dict, agent_type: str) -> str:
     lines.append("")
     lines.append(f"> 参考消费水平：{_BUDGET_DAILY.get(budget, '')}，实际费用因个人选择与当地物价而异。\n")
 
-    # ── 货币换算提示 ──────────────────────────────────────────────
+    # 货币换算提示
     cur = _CITY_CURRENCY.get(city)
     if cur:
         code, name, rate = cur
@@ -405,7 +403,7 @@ def _format_output(result: dict, agent_type: str) -> str:
             lines.append(f"（每日活动参考：约 {daily_local:,} {code} / 人·天）\n")
             lines.append(f"> 汇率随市场波动，实际以出行时银行/兑换网点为准，建议提前适量兑换或使用境外免手续费银行卡。\n")
 
-    # ── 系统说明 ──────────────────────────────────────────────────
+    # 系统说明
     if agent_type == "supervised":
         top = result.get("top_features", [])
         if top:
@@ -424,8 +422,7 @@ def _format_output(result: dict, agent_type: str) -> str:
     return "\n".join(lines)
 
 
-# ── 数据模型 ─────────────────────────────────────────────────────
-
+# 数据模型
 class TravelRequest(BaseModel):
     city: str
     days: int = Field(..., ge=1, le=14)
@@ -461,8 +458,7 @@ class BookingCreateRequest(BaseModel):
     id_number: Optional[str] = ""
 
 
-# ── 行程生成路由 ─────────────────────────────────────────────────
-
+# 行程生成路由
 @app.post("/api/generate")
 async def generate_itinerary(req: TravelRequest):
     """生成旅行行程（三种 AI 系统可选）"""
@@ -501,7 +497,7 @@ async def generate_itinerary(req: TravelRequest):
         formatted = _format_output(result, req.agent_type)
         meta = result.get("metadata", test_case["metadata"])
 
-        # ── 公共字段（所有 agent 均返回）───────────────────────────
+        #  公共字段（所有 agent 均返回）───────────────────────────
         resp: dict = {
             "itinerary": formatted,
             "agent_type": req.agent_type,
@@ -510,7 +506,7 @@ async def generate_itinerary(req: TravelRequest):
             "metadata": meta,
         }
 
-        # ── Agent 专属字段（按类型精简，减少无关字段传输）──────────
+        #  Agent 专属字段（按类型精简，减少无关字段传输）──────────
         if req.agent_type == "rule_based":
             resp["transport_tip"] = result.get("transport_tip", "")
             resp["city_tips"] = result.get("city_tips", [])
@@ -587,7 +583,7 @@ async def generate_stream(req: TravelRequest):
     }
     test_case = {"id": f"WEB_{req.city}", "input": user_input, "metadata": meta}
 
-    # ── 非流式系统 ────────────────────────────────────────────────
+    # 非流式系统
     if req.agent_type != "goal_based":
         try:
             if req.agent_type == "rule_based":
@@ -664,7 +660,7 @@ async def generate_stream(req: TravelRequest):
             headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
         )
 
-    # ── goal_based：并行执行 — 立即流式输出 + 后台调用工具 ──
+    # goal_based：并行执行 — 立即流式输出 + 后台调用工具
     try:
         from systems.goal_based.agent_agentic import TravelPlanningAgent
         from systems.goal_based.agent_agentic import AGENT_SYSTEM_PROMPT
@@ -737,7 +733,7 @@ async def generate_stream(req: TravelRequest):
             kb_thread.start()
             web_thread.start()
 
-            # ── 主线程：立即开始流式输出 ──
+            # 主线程：立即开始流式输出
             messages = [
                 {"role": "system", "content": AGENT_SYSTEM_PROMPT},
                 {"role": "user", "content": user_input},
@@ -811,7 +807,7 @@ async def chat(message: ChatMessage):
 
     content = message.content
 
-    # ── 解析关键参数，同时记录置信度 ────────────────────────────
+    # 解析关键参数，同时记录置信度
     city_m = re.search(r"去(.{2,6}?)(?:玩|旅游|游玩|度假)", content)
     city_recognized = city_m is not None
     city = city_m.group(1).replace("一下", "").replace("一趟", "").strip() if city_m else "巴黎"
@@ -891,13 +887,12 @@ async def chat(message: ChatMessage):
         )
 
 
-# ── 票务路由 ─────────────────────────────────────────────────────
-
+# 票务路由
 @app.post("/api/booking/search")
 async def booking_search(req: BookingSearchRequest):
     """搜索机票或火车票（所有用户相同权限，无区别对待）"""
 
-    # ── 城市名校验：防止无效输入静默返回空列表 ───────────────────
+    # 城市名校验：防止无效输入静默返回空列表
     if req.origin not in KNOWN_CITIES:
         raise _api_error(
             400, "INVALID_CITY",
@@ -995,8 +990,7 @@ async def booking_cancel(order_id: str):
     return order
 
 
-# ── 通用路由 ─────────────────────────────────────────────────────
-
+# 通用路由
 @app.get("/api/health")
 async def health():
     return {

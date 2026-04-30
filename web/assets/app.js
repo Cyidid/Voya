@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // ── Interest tag persistence (Issue 13) ──────────────────────
+  // Interest tag persistence (Issue 13)
   const INTEREST_KEY = 'yy_interests';
 
   function saveInterests() {
@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
   _histRender();
   _renderMyTrips();
 
-  // ── Event delegation: city picker buttons ────────────────────
+  // Event delegation: city picker buttons
   // 代替 inline onmousedown="pickDestCity(...)" / pickOriginCity(...)
   document.getElementById('destPickerGrid')?.addEventListener('mousedown', function(e) {
     const btn = e.target.closest('.cp-city');
@@ -146,7 +146,7 @@ async function checkHealth() {
   _healthTimer = setTimeout(checkHealth, delay);
 }
 
-// ── 出发地城市选择器 ────────────────────────────────────
+// 出发地城市选择器
 const _ALL_ORIGINS = [
   '上海','北京','广州','深圳','成都','杭州','武汉','重庆',
   '西安','南京','天津','苏州','厦门','长沙','青岛','大连',
@@ -189,7 +189,7 @@ function pickOriginCity(city) {
   document.getElementById('originPicker').classList.remove('open');
 }
 
-// ── 目的地城市选择器 ────────────────────────────────────
+// 目的地城市选择器
 // 全部目的地城市（按地理区域排列：国内 → 近邻亚洲 → 中东 → 大洋洲 → 欧洲 → 美洲）
 const _ALL_DESTS = [
   // 国内
@@ -580,7 +580,7 @@ function parseAndFill(txt) {
   const modeMap = { 飞机:'飞机', 航班:'飞机', 高铁:'高铁', 火车:'火车', 动车:'高铁', 自驾:'自驾', 开车:'自驾', 游轮:'游轮', 邮轮:'游轮' };
   const travelMode = Object.entries(modeMap).find(([k]) => txt.includes(k))?.[1] || null;
 
-  // ── 出发日期解析 ──────────────────────────────────────────────────────────
+  // 出发日期解析
   // 辅助：把 YYYY-M-D 对齐为 YYYY-MM-DD
   function _fmt(y, m, d) {
     return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
@@ -713,7 +713,7 @@ function _extractErrMsg(data) {
   return '请求失败，请稍后重试';
 }
 
-// ── 统一入口：自动选择流式 or 普通请求 ─────────────────────────
+// 统一入口：自动选择流式 or 普通请求
 // 取消当前请求
 function abortCurrent() {
   if (_abortCtrl) { _abortCtrl.abort(); _abortCtrl = null; }
@@ -733,7 +733,7 @@ async function callAPI(params, userText) {
   return callAPIStream(params, userText);
 }
 
-// ── 流式智能自动滚动 ─────────────────────────────────────────────
+// 流式智能自动滚动
 // 用户手动上划时暂停，回到底部时恢复
 let _scrollPaused = false;
 (function _initStreamScroll() {
@@ -759,7 +759,7 @@ function _streamAutoScroll() {
   if (body) body.scrollTop = body.scrollHeight;
 }
 
-// ── SSE 流式请求 ─────────────────────────────────────────────────
+// SSE 流式请求
 async function callAPIStream(params, userText) {
   busy = true;
   loadStart = Date.now();
@@ -964,7 +964,7 @@ function _L(zh, en) { return _lang === 'en' ? en : zh; }
 // Translation maps for select values → display text
 const _GROUP_EN  = {'单人':'Solo','情侣':'Couple','夫妻':'Married','朋友':'Friends','家庭':'Family'};
 
-// ── 天气/季节查询表（25 主要城市 × 4 季）────────────────────────────────────
+//  天气/季节查询表（25 主要城市 × 4 季）────────────────────────────────────
 const _CLIMATE = {
   '东京':  {spring:'樱花季(3-4月)，10-18°C，需备雨具',summer:'炎热潮湿，28-35°C，注意防暑补水',autumn:'红叶季(11月)，凉爽宜人，12-20°C',winter:'干燥寒冷，2-8°C，可见富士山雪景'},
   '大阪':  {spring:'樱花盛开，10-17°C，适合徒步',summer:'高温潮湿，30-35°C，多室内休憩',autumn:'凉爽少雨，最佳观光季',winter:'偶有降雪，4-10°C'},
@@ -992,7 +992,7 @@ function _monthSeason(m) { return m<=2||m===12?'winter':m<=5?'spring':m<=8?'summ
 const _SEASON_ZH = {spring:'春季',summer:'夏季',autumn:'秋季',winter:'冬季'};
 const _SEASON_EN = {spring:'Spring',summer:'Summer',autumn:'Autumn',winter:'Winter'};
 
-// ── 签证信息查询表（中国公民持普通护照）────────────────────────────────────
+//  签证信息查询表（中国公民持普通护照）────────────────────────────────────
 const _VISA = {
   '东京':'🟡 旅游签证 · 需提前申请(约5-7工作日)',
   '大阪':'🟡 旅游签证 · 需提前申请(约5-7工作日)',
@@ -1033,7 +1033,7 @@ function renderSide(data, params) {
     ? (params.interests || []).map(i => _INTEREST_EN[i] || i)
     : (params.interests || []);
 
-  // ── 目的地分区（影响日均花销和大交通估算）─────────────────────
+  //  目的地分区（影响日均花销和大交通估算）─────────────────────
   // 近程国际（4h内，东北亚/东南亚）
   const _nearIntl = new Set(['东京','首尔','曼谷','新加坡','普吉岛','马尔代夫',
     '巴厘岛','京都','大阪','香港','台北']);
@@ -1132,7 +1132,7 @@ function renderSide(data, params) {
           <div class="tl-content"><div class="tl-label">${_L('需求解析','Request Parsed')}</div><div class="tl-sub">${params.city} ${params.days}${_L('天','d')} · ${params.group} ${numP}${_L('人','ppl')}</div></div>
         </div>
         ${isStreaming
-          /* ── 流式阶段：内嵌工具调用实时日志 ── */
+          /* 流式阶段：内嵌工具调用实时日志 */
           ? `<div class="tl-item tl-item--stream">
               <div class="tl-dot tl-dot--pulse"></div>
               <div class="tl-content" style="flex:1;min-width:0">
@@ -1140,7 +1140,7 @@ function renderSide(data, params) {
                 <pre id="toolLogContent" class="tool-log-inline"></pre>
               </div>
             </div>`
-          /* ── 完成后：逐条时间轴 ── */
+          /* 完成后：逐条时间轴 */
           : steps.map((s, i) => {
               // 两种工具都优先用参数构成可读描述，result_preview 作备用
               const preview = s.tool === 'search_web'
@@ -1189,7 +1189,7 @@ function renderSide(data, params) {
     </div>`;
   }
 
-  // ── 偏好匹配：概率分布卡（supervised only，生成完成后有数据才显示）──────────
+  //  偏好匹配：概率分布卡（supervised only，生成完成后有数据才显示）──────────
   if (params.agent_type === 'supervised') {
     const probaDist = data.proba_distribution || [];
     const isUncertain = data.is_uncertain;
@@ -1215,7 +1215,7 @@ function renderSide(data, params) {
     }
   }
 
-  // ── 天气/季节卡（所有 agent，有数据时显示）──────────────────────────────────
+  //  天气/季节卡（所有 agent，有数据时显示）──────────────────────────────────
   const _tMonth = params.start_date ? new Date(params.start_date).getMonth() + 1 : new Date().getMonth() + 1;
   const _tSeason = _monthSeason(_tMonth);
   const _weatherNote = data.weather_note || (_CLIMATE[params.city] && _CLIMATE[params.city][_tSeason]);
@@ -1234,7 +1234,7 @@ function renderSide(data, params) {
     </div>`;
   }
 
-  // ── 签证提醒卡（国际目的地，有签证数据时显示）──────────────────────────────
+  //  签证提醒卡（国际目的地，有签证数据时显示）──────────────────────────────
   const _visaInfo = _VISA[params.city];
   if (_visaInfo && params.city !== (params.origin || '')) {
     const _visaColor = _visaInfo.startsWith('🟢') ? 'var(--green)' : _visaInfo.startsWith('🔴') ? '#DC2626' : '#D97706';
@@ -1247,7 +1247,7 @@ function renderSide(data, params) {
     </div>`;
   }
 
-  // ── 出行贴士（静态，所有 agent）────────────────────────────────────────────
+  //  出行贴士（静态，所有 agent）────────────────────────────────────────────
   html += `<div class="sc2">
     <div class="sc2-head"><div class="sc2-head-dot" style="background:var(--text3)"></div>${_L('出行贴士','Travel Tips')}</div>
     <div class="sc2-body" style="font-size:12px;color:var(--text2);line-height:2.1">
@@ -1332,7 +1332,7 @@ function toast(msg, type = '') {
   toastTimer = setTimeout(() => el.className = 'toast', 3000);
 }
 
-// ── 国际化（中 / EN）────────────────────────────────
+//  国际化（中 / EN）────────────────────────────────
 const I18N = {
   zh: {
     nav_goal: '实时规划', nav_ml: '偏好匹配', nav_rule: '经典规划',
@@ -1633,7 +1633,7 @@ function applyLang() {
 // Override checkHealth to use i18n
 const _origCheckHealth = typeof checkHealth !== 'undefined' ? checkHealth : null;
 
-// ── 票务功能 ────────────────────────────────────────
+// 票务功能
 let _bkType = 'flight';
 let _pendingTicket = null;
 
@@ -1827,7 +1827,7 @@ async function confirmBooking() {
   }
 }
 
-// ── Orders pagination + cache (Issue 2) ─────────────────────────
+// Orders pagination + cache (Issue 2)
 const ORDERS_CACHE_KEY = 'yy_orders_cache';
 const ORDERS_TS_KEY    = 'yy_orders_ts';
 const ORDERS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -1964,7 +1964,7 @@ async function showOrders() {
   }
 }
 
-// ── User Profile / History ────────────────────────────────────
+// User Profile / History
 const _HIST_KEY = 'voya_history';
 const _HIST_MAX = 20;
 
@@ -2020,7 +2020,7 @@ function _histApply(jsonStr) {
   } catch(e) { toast(_L('填写失败', 'Fill failed'), 'err'); }
 }
 
-// ── Practical Tools ────────────────────────────────────────────
+// Practical Tools
 const _EMERGENCY = {
   '巴黎':       { police:'17', ambulance:'15', fire:'18', embassy:'+33-1-49523000', hospital:'Hôtel-Dieu: +33-1-42348234', tip:'EU emergency: 112' },
   '东京':       { police:'110', ambulance:'119', fire:'119', embassy:'+81-3-35002224', hospital:'St.Luke\'s: +81-3-35416151', tip:'English: 03-3501-0110' },
@@ -2258,7 +2258,7 @@ function renderPhrases() {
     </div>`).join('');
 }
 
-// ── Export & Share ────────────────────────────────────────────
+// Export & Share
 function shareTrip() {
   const content = document.getElementById('itinContent')?.innerText || '';
   if (!content) { toast('暂无行程内容', 'err'); return; }
@@ -2312,7 +2312,7 @@ function copyText(text) {
   }
 })();
 
-// ── Trip Archive ──────────────────────────────────────────────
+// Trip Archive
 const _TRIPS_KEY = 'voya_trips';
 
 function saveTrip() {

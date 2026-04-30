@@ -14,7 +14,7 @@ from typing import Optional
 
 _ORDERS_PATH = os.path.join(os.path.dirname(__file__), "../../assets/orders/orders.json")
 
-# ─────────────────────────────────────────────────────────────────
+#
 # 真实国际航线数据库
 # 字段说明：
 #   airline  航空公司中文名
@@ -26,7 +26,7 @@ _ORDERS_PATH = os.path.join(os.path.dirname(__file__), "../../assets/orders/orde
 #   via      经停城市（stops>0 时填写）
 #   econ     经济舱参考区间 [低, 高]（人民币）
 #   biz      商务舱参考区间 [低, 高]（人民币）
-# ─────────────────────────────────────────────────────────────────
+#
 REAL_INTL_ROUTES: dict[tuple, list] = {
 
     # ══════════ 上海出发 ══════════
@@ -226,9 +226,9 @@ REAL_INTL_ROUTES: dict[tuple, list] = {
     ],
 }
 
-# ─────────────────────────────────────────────────────────────────
+#
 # 真实国内高铁数据库
-# ─────────────────────────────────────────────────────────────────
+#
 REAL_TRAIN_ROUTES: dict[tuple, list] = {
     ("上海", "北京"): [
         {"code":"G1",  "type":"高铁","dep":"08:00","arr":"12:18","duration":"4h18m","second":553, "first":933,  "business":1748},
@@ -321,9 +321,9 @@ REAL_TRAIN_ROUTES: dict[tuple, list] = {
     ],
 }
 
-# ─────────────────────────────────────────────────────────────────
+#
 # 备用基准价（路线不在数据库中时使用）
-# ─────────────────────────────────────────────────────────────────
+#
 DOMESTIC_CITIES = [
     "上海", "北京", "广州", "深圳", "成都", "杭州", "武汉",
     "重庆", "西安", "南京", "天津", "青岛", "厦门", "昆明",
@@ -346,9 +346,9 @@ _DURATION_NEAR = {"东京","首尔","曼谷","新加坡","普吉岛","马尔代�
 _DURATION_MID  = {"迪拜","悉尼"}
 
 
-# ─────────────────────────────────────────────────────────────────
+#
 # 价格扰动：同一查询稳定，不同日期/舱位有合理浮动
-# ─────────────────────────────────────────────────────────────────
+#
 def _price_vary(base: int, seed: str, factor: float = 0.15) -> int:
     """MD5 稳定扰动，factor=15% 区间随机"""
     h = int(hashlib.md5(seed.encode()).hexdigest()[:8], 16)
@@ -422,9 +422,9 @@ def _seats_available(date_str: str, capacity: int, seed: str) -> int:
         return capacity // 2
 
 
-# ─────────────────────────────────────────────────────────────────
+#
 # 搜索接口
-# ─────────────────────────────────────────────────────────────────
+#
 def search_tickets(
     origin: str,
     destination: str,
@@ -439,7 +439,7 @@ def search_tickets(
     """
     date_mult = _date_multiplier(date)
 
-    # ── 火车票 ──────────────────────────────────────────────────
+    # 火车票
     if ticket_type == "train":
         trains = REAL_TRAIN_ROUTES.get((origin, destination), [])
         if not trains:
@@ -485,7 +485,7 @@ def search_tickets(
         results.sort(key=lambda x: x["price"])
         return results
 
-    # ── 机票 ────────────────────────────────────────────────────
+    # 机票
     route_key = (origin, destination)
     flights = REAL_INTL_ROUTES.get(route_key, [])
 
@@ -543,9 +543,9 @@ def search_tickets(
 
 
 
-# ─────────────────────────────────────────────────────────────────
+#
 # 订单管理（不变）
-# ─────────────────────────────────────────────────────────────────
+#
 def _load_orders() -> dict:
     os.makedirs(os.path.dirname(_ORDERS_PATH), exist_ok=True)
     if not os.path.exists(_ORDERS_PATH):

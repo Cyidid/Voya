@@ -27,7 +27,7 @@ except ImportError:
     SKLEARN_AVAILABLE = False
     logger.warning("sklearn 未安装，请运行: pip install scikit-learn")
 
-# ── 推荐类型定义 ──
+# 推荐类型定义
 RECOMMENDATION_TYPES = {
     0: "budget_sightseeing", # 经济观光
     1: "cultural_deep_dive", # 文化深度游
@@ -50,7 +50,7 @@ RECOMMENDATION_LABELS_ZH = {
     7: "团队社交游",
 }
 
-# ── 特征列表（用于可解释性）──
+#  特征列表（用于可解释性）
 FEATURE_NAMES = [
     "days", "budget_level", "num_people", "group_type",
     "has_special", "travel_mode",
@@ -296,8 +296,7 @@ CITY_TYPE_ACTIVITIES = {
 }
 
 
-# ── 训练数据生成 ───────────────────────────────────────────
-
+# 训练数据生成
 def _expert_label(f: dict) -> int:
     """
     专家规则：根据特征生成训练标签。
@@ -435,8 +434,7 @@ def generate_training_dataset(n_samples: int = 10000, noise_rate: float = 0.0) -
     return np.array(X), np.array(y), records
 
 
-# ── 引擎主类 ──────────────────────────────────────────────
-
+# 引擎主类
 class SupervisedEngine:
     """监督学习引擎 - VotingClassifier (GBT + RF + ExtraTrees)"""
 

@@ -898,7 +898,7 @@ class RuleBasedEngine:
 _engine: RuleBasedEngine | None = None
 
 
-# ── 自然语言预处理 ─────────────────────────────────────────────
+# 自然语言预处理
 import re as _re
 
 def parse_natural_language(text: str) -> dict:
@@ -909,7 +909,7 @@ def parse_natural_language(text: str) -> dict:
     """
     text_lower = text.lower()
 
-    # ── 1. 城市名：先查规则库别名，再 regex 提取 ──
+    # 1. 城市名：先查规则库别名，再 regex 提取
     city = "巴黎" # 默认
     for alias, canonical in sorted(CITY_NORMALIZE.items(), key=lambda x: -len(x[0])):
         if alias in text or alias in text_lower:
@@ -921,13 +921,13 @@ def parse_natural_language(text: str) -> dict:
             raw = m.group(1).strip().replace("一下", "").replace("一趟", "")
             city = CITY_NORMALIZE.get(raw, raw)
 
-    # ── 2. 天数 ──
+    # 2. 天数
     days = 3
     m = _re.search(r"(\d+)\s*(?:天|日)", text)
     if m:
         days = min(14, max(1, int(m.group(1))))
 
-    # ── 3. 预算：关键词匹配 ──
+    # 3. 预算：关键词匹配
     budget = "中"
     high_kw = ["高", "充裕", "宽裕", "奢华", "豪华", "不差钱", "土豪", "商务舱", "头等"]
     low_kw = ["低", "省钱", "便宜", "经济", "节省", "穷游", "背包", "预算有限"]
@@ -936,7 +936,7 @@ def parse_natural_language(text: str) -> dict:
     elif any(k in text for k in low_kw):
         budget = "低"
 
-    # ── 4. 兴趣标签：关键词列表扫描 ──
+    # 4. 兴趣标签：关键词列表扫描
     interest_kw = {
         "文化": ["文化", "博物馆", "艺术", "展览", "gallery"],
         "历史": ["历史", "古迹", "遗址", "城堡", "宫殿"],
@@ -950,7 +950,7 @@ def parse_natural_language(text: str) -> dict:
     if not interests:
         interests = ["文化", "美食"]
 
-    # ── 5. 出行类型 ──
+    # 5. 出行类型
     group_kw = {
         "情侣": ["情侣", "约会", "恋人"],
         "夫妻": ["夫妻", "老婆", "老公", "爱人", "太太", "先生"],
@@ -964,13 +964,13 @@ def parse_natural_language(text: str) -> dict:
             group = g
             break
 
-    # ── 6. 人数 ──
+    # 6. 人数
     num_people = 2 if group in ("情侣", "夫妻") else 2
     m = _re.search(r"(\d+)\s*(?:人|位|个人)", text)
     if m and group not in ("情侣", "夫妻"):
         num_people = max(1, min(20, int(m.group(1))))
 
-    # ── 7. 出发地 ──
+    # 7. 出发地
     origin = ""
     # 先匹配 "从/由 X 出发/飞" 形式
     m = _re.search(r"(?:从|由|自)\s*(.{2,6}?)\s*(?:出发|乘|飞|坐|起飞|前往)", text)
@@ -996,7 +996,7 @@ def parse_natural_language(text: str) -> dict:
             if city == "巴黎" and raw_dest and raw_dest != raw_origin:
                 city = raw_dest
 
-    # ── 8. 出行方式 ──
+    # 8. 出行方式
     travel_mode = "飞机"
     if any(k in text for k in ["高铁", "火车", "动车", "高速铁路"]):
         travel_mode = "高铁"
@@ -1005,7 +1005,7 @@ def parse_natural_language(text: str) -> dict:
     elif any(k in text for k in ["邮轮", "游轮", "轮船"]):
         travel_mode = "邮轮"
 
-    # ── 9. 特殊需求 ──
+    # 9. 特殊需求
     special = "无"
     if any(k in text for k in ["儿童", "小孩", "孩子", "宝宝", "婴儿"]):
         special = "有儿童"

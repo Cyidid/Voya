@@ -30,7 +30,7 @@ try:
 except ImportError:
     GOAL_BASED_CONFIG = {"use_real_llm": True, "model_name": "qwen3.6-plus"}
 
-# ── Agent 系统提示词 ──
+# Agent 系统提示词
 AGENT_SYSTEM_PROMPT = """你是一位专业的全球旅游规划顾问，擅长为不同类型的旅行者制定个性化、详尽、实用的旅行行程。你的规划必须融合天气、人员组成、兴趣偏好和实用信息四个核心维度，避免千篇一律的通用模板。
 
 【工具使用策略】
@@ -162,7 +162,7 @@ AGENT_SYSTEM_PROMPT = """你是一位专业的全球旅游规划顾问，擅长�
 
 【输出要求】请直接利用自身知识生成行程。内容越详实越好——每天景点、餐饮、交通、小贴士都要写充分，不要因为篇幅限制而截断或跳过任何天数。模型本身具备丰富的全球旅行信息，请充分发挥，输出完整的高质量方案。"""
 
-# ── 工具定义（function calling 格式）──
+#  工具定义（function calling 格式）
 TOOLS = [
     {
         "type": "function",
@@ -218,8 +218,7 @@ TOOLS = [
 ]
 
 
-# ── 工具执行函数 ─────────────────────────────────────────────────────────
-
+# 工具执行函数
 def _execute_search_web(args: dict, search_client) -> str:
     """执行网络搜索"""
     query = args.get("query", "")
@@ -278,8 +277,7 @@ def _execute_query_knowledge(args: dict, knowledge_client) -> str:
         return f"[知识库查询失败: {e}]"
 
 
-# ── 主智能体类 ────────────────────────────────────────────────────────────
-
+# 主智能体类
 class TravelPlanningAgent:
     """旅游规划智能体 - Agentic AI"""
 
@@ -380,7 +378,7 @@ class TravelPlanningAgent:
         city = meta.get("city", "")
         logger.info(f"智能体启动：规划 {city} {meta.get('days')}天行程")
 
-        # ── 主动预查询知识库，注入本地实景数据 ────────────────────────
+        # 主动预查询知识库，注入本地实景数据
         kb_context = ""
         if self.knowledge_client and city:
             try:
@@ -393,7 +391,7 @@ class TravelPlanningAgent:
             except Exception as e:
                 logger.warning(f"知识库预查询失败: {e}")
 
-        # ── 构建初始消息 ────────────────────────────────────────────────
+        # 构建初始消息
         messages = [
             {"role": "system", "content": AGENT_SYSTEM_PROMPT},
             {"role": "user", "content": user_request + kb_context},
@@ -403,8 +401,7 @@ class TravelPlanningAgent:
         final_output = ""
         tool_rounds = 0
 
-        # ── Agent 循环 ───────────────────────────────────────────────────
-
+        # Agent 循环
         while tool_rounds <= self.max_tool_rounds:
             response = self.client.chat.completions.create(
                 model=self.model_name,
@@ -488,7 +485,7 @@ class TravelPlanningAgent:
                    "tool_rounds": 0, "agent_steps": []}
             return
 
-        # ── 工具预查询：知识库 + 实时联网 ──────────────────────────
+        # 工具预查询：知识库 + 实时联网
         extra_context = ""
         tool_steps = []
         tool_rounds = 0
