@@ -27,6 +27,16 @@ except ImportError:
     SKLEARN_AVAILABLE = False
     logger.warning("sklearn 未安装，请运行: pip install scikit-learn")
 
+try:
+    from systems.rule_based.engine import RULES as _RULES_DB
+except ImportError:
+    try:
+        import sys as _sys
+        _sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        from systems.rule_based.engine import RULES as _RULES_DB
+    except ImportError:
+        _RULES_DB = {}
+
 # 推荐类型定义
 RECOMMENDATION_TYPES = {
     0: "budget_sightseeing", # 经济观光
@@ -101,6 +111,54 @@ CITY_DAILY_BUDGET = {
     "哥本哈根": {"低": 600, "中": 1400, "高": 4200}, "苏黎世": {"低": 700, "中": 1600, "高": 4800},
     "巴厘岛": {"低": 150, "中": 400, "高": 1400},
 }
+
+# 推荐类型 → RULES 景点分类（上午分类，下午分类）
+_REC_TYPE_RULES_CATS: dict[int, tuple[str, str]] = {
+    0: ("nature",    "culture"),
+    1: ("culture",   "history"),
+    2: ("culture",   "shopping"),
+    3: ("nature",    "culture"),
+    4: ("food",      "shopping"),
+    5: ("nature",    "nature"),
+    6: ("nature",    "culture"),
+    7: ("nightlife", "food"),
+}
+
+_CAT_DETAIL: dict[str, str] = {
+    "culture":   "欣赏丰富的文化艺术展陈，感受城市人文积淀",
+    "history":   "深入了解历史背景，感受厚重的历史文化",
+    "nature":    "漫步自然风光区域，享受清新空气与开阔视野",
+    "food":      "品尝当地招牌美食，体验地道饮食文化",
+    "shopping":  "逛街选购，挑选心仪的本地特产与纪念品",
+    "nightlife": "感受城市夜晚活力，体验当地独特的夜生活",
+    "outdoor":   "户外探索，亲近自然，体验真实的地方风貌",
+}
+
+
+def _rules_activities_for_city(city: str, rec_type: int) -> dict:
+    """从 RULES 景点库提取该城市的上午/下午活动列表，格式与 CITY_TYPE_ACTIVITIES 一致。"""
+    attractions = _RULES_DB.get(city, {}).get("attractions", {})
+    if not attractions:
+        return {}
+    morning_cat, afternoon_cat = _REC_TYPE_RULES_CATS.get(rec_type, ("culture", "nature"))
+
+    def _to_pairs(cat: str) -> list:
+        names = attractions.get(cat, [])
+        if not names:
+            # 分类无数据时取第一个有内容的分类兜底
+            for v in attractions.values():
+                if v:
+                    names = v
+                    break
+        detail = _CAT_DETAIL.get(cat, "参观游览，探索城市风貌")
+        return [(name, detail) for name in names]
+
+    mornings = _to_pairs(morning_cat)
+    afternoons = _to_pairs(afternoon_cat)
+    if not mornings and not afternoons:
+        return {}
+    return {"mornings": mornings, "afternoons": afternoons}
+
 
 # 城市 × 推荐类型 → 具体真实景点
 CITY_TYPE_ACTIVITIES = {
@@ -675,8 +733,10 @@ class SupervisedEngine:
         rec_name_zh = RECOMMENDATION_LABELS_ZH.get(rec_type, "文化深度游")
         interests = meta.get("interests", [])
 
-        # 优先用城市-类型真实景点，无数据则退回通用模板
+        # 三层降级：CITY_TYPE_ACTIVITIES（5城精选）→ RULES 景点库（25城）→ 通用模板
         city_activities = CITY_TYPE_ACTIVITIES.get(city, {}).get(rec_type, {})
+        if not city_activities:
+            city_activities = _rules_activities_for_city(city, rec_type)
 
         # 每种推荐类型的活动模板（每个 key 对应一个列表，按天轮换，避免重复）
         templates = {
