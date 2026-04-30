@@ -181,7 +181,7 @@ parse_natural_language()  — NLP 预处理层
 _extract_features()  — 特征向量化（20维）
     ↓
 VotingClassifier 软投票（3个基学习器并行预测）
-    ├── GradientBoostingClassifier（n=120, depth=3, lr=0.08）
+    ├── GradientBoostingClassifier（n=120, depth=3, lr=0.08, subsample=0.75）
     ├── RandomForestClassifier（n=120, depth=6, min_leaf=5）
     └── ExtraTreesClassifier（n=100, depth=6, min_leaf=5）
     ↓ 软投票：取各类别概率均值，选概率最大的类别
@@ -284,7 +284,7 @@ query_knowledge_base(city, query)  # ChromaDB 本地知识库查询
 - temperature：0.75（输出丰富多样）
 - max_tokens：8192（支持完整多天详细行程）
 
-**缓存机制**：类级别 `_class_cache` dict，最大 30 条，key 为城市+天数+偏好的 MD5 哈希，LRU 淘汰，缓存命中时秒级响应。
+**缓存机制**：类级别 `_class_cache` dict，最大 30 条，key 为城市+天数+偏好的 MD5 哈希，FIFO 淘汰（超出上限时删除最早插入的条目），缓存命中时秒级响应。
 
 **SSE 流式输出**：
 - chunk 事件：`data: {"chunk": "..."}`

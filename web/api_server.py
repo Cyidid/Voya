@@ -514,6 +514,8 @@ async def generate_itinerary(req: TravelRequest):
         if req.agent_type == "rule_based":
             resp["transport_tip"] = result.get("transport_tip", "")
             resp["city_tips"] = result.get("city_tips", [])
+            resp["coverage_gap"] = result.get("coverage_gap", False)
+            resp["city_used"] = result.get("city_used", "")
 
         elif req.agent_type == "supervised":
             resp["recommendation_type_zh"] = result.get("recommendation_type_zh", "")
@@ -607,6 +609,8 @@ async def generate_stream(req: TravelRequest):
                 "is_uncertain": result.get("is_uncertain", False),
                 "model_accuracy": result.get("model_accuracy", 0),
                 "dataset_size": result.get("dataset_size", 0),
+                "coverage_gap": result.get("coverage_gap", False),
+                "city_used": result.get("city_used", ""),
             }
         except Exception as e:
             async def err_shot():

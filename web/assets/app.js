@@ -877,7 +877,12 @@ async function callAPIStream(params, userText) {
           _updateResultChips(params, syntheticData);
           renderSide(syntheticData, params);
           addMsg('a', `行程已生成：${params.city} ${params.days} 天 · ${params.group}`);
-          toast('行程生成成功', 'ok');
+          if (syntheticData.coverage_gap && syntheticData.city_used) {
+            toast(_L(`「${params.city}」暂不在经典规划覆盖范围内，已为您展示「${syntheticData.city_used}」的行程作为参考。`,
+                     `"${params.city}" is not in Classic Planner's coverage. Showing "${syntheticData.city_used}" instead.`), 'warn');
+          } else {
+            toast('行程生成成功', 'ok');
+          }
           // 保存到历史记录
           _histSave({ city: params.city, group: params.group, budget: params.budget,
             interests: params.interests, days: params.days, num_people: params.num_people,

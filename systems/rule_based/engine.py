@@ -630,7 +630,8 @@ class RuleBasedEngine:
         travel_mode = meta.get('travel_mode', '飞机')
 
         # 获取城市规则（不支持时默认巴黎）
-        if city_key not in self.rules:
+        coverage_gap = city_key not in self.rules
+        if coverage_gap:
             city_key = "巴黎"
 
         city_rules = self.rules[city_key]
@@ -750,7 +751,6 @@ class RuleBasedEngine:
 
         itinerary_md = "\n".join(md_lines)
 
-        city_fallback = city_key != city_raw and city_raw not in CITY_NORMALIZE
         result = {
             "system": "rule-based",
             "itinerary": itinerary_md,
@@ -758,6 +758,7 @@ class RuleBasedEngine:
             "total_budget_estimate": activity_budget,   # 不含交通，前端侧边栏会自行叠加
             "metadata": meta,
             "city_used": city_key,
+            "coverage_gap": coverage_gap,               # True = 输入城市不在覆盖范围，已回退至巴黎
             "transport_tip": city_rules.get("transport", ""),
             "city_tips": city_rules.get("tips", []),
             "transport_tip_en": RULES_EN.get(city_key, {}).get("transport", city_rules.get("transport", "")),
