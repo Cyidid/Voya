@@ -241,4 +241,4 @@ echo "服务已启动，访问 http://服务器IP:8000/preview"
 
 > 完整项目结构与技术文档见 **[SYSTEM_GUIDE.md](SYSTEM_GUIDE.md)**。
 
-*云游 Voya · AI Travel Planning · emlyon business school · Spring 2026*
+*云游 Voya · AI Travel Planning · Spring 2026*

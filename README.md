@@ -48,4 +48,4 @@
 
 ---
 
-*云游 Voya · emlyon business school · Spring 2026*
+*云游 Voya · Spring 2026*
