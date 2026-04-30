@@ -6,6 +6,13 @@ dist
 __pycache__/
 *.pyc
 .venv
+
+# 日志与运行时文件
+logs/
+*.log
+
+# Claude 本地配置
+.claude/
 *.o
 *.a
 /vendor
