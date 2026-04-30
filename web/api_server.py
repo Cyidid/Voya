@@ -1043,7 +1043,8 @@ async def ppt_bg():
 
 @app.get("/")
 async def root():
-    return {"name": "云游 API", "version": "3.1.0", "ui": "/preview", "docs": "/docs"}
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/preview")
 
 
 if __name__ == "__main__":
