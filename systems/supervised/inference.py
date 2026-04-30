@@ -675,7 +675,7 @@ class SupervisedEngine:
         rec_name_zh = RECOMMENDATION_LABELS_ZH.get(rec_type, "文化深度游")
         interests = meta.get("interests", [])
 
-        # 方案1：城市-类型活动映射，让推荐更具体
+        # 优先用城市-类型真实景点，无数据则退回通用模板
         city_activities = CITY_TYPE_ACTIVITIES.get(city, {}).get(rec_type, {})
 
         # 每种推荐类型的活动模板（每个 key 对应一个列表，按天轮换，避免重复）
@@ -920,7 +920,6 @@ class SupervisedEngine:
             ]
             mood = day_moods[(day - 1) % len(day_moods)]
 
-            # 优先使用城市-类型真实景点，否则回退到通用模板
             city_key = city_activities.get("mornings", [])
             if city_key:
                 idx_c = (day - 1) % len(city_key)
