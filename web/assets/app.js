@@ -189,6 +189,177 @@ function pickOriginCity(city) {
   document.getElementById('originPicker').classList.remove('open');
 }
 
+// ── 地名消歧义 ──────────────────────────────────────────────────────────────
+// 每条记录：display（弹窗显示全称）、sub（副标题/省份）、city（用于天气/签证查询的主城市）、dest（传给 API 的目的地名）
+const _AMBIGUOUS_PLACES = {
+  // 真正的同名歧义：不同省/市存在同名区县
+  '朝阳': [
+    { display:'北京市朝阳区',     sub:'华北 · 首都核心区',         city:'北京',   dest:'北京朝阳区',     icon:'🏙️' },
+    { display:'辽宁省朝阳市',     sub:'东北 · 辽宁西部城市',       city:'沈阳',   dest:'辽宁朝阳市',     icon:'🌄' },
+  ],
+  '通州': [
+    { display:'北京市通州区',     sub:'华北 · 北京城市副中心',     city:'北京',   dest:'北京通州区',     icon:'🏙️' },
+    { display:'江苏省南通市通州区', sub:'华东 · 长三角',           city:'南通',   dest:'南通通州区',     icon:'🌊' },
+  ],
+  '江北': [
+    { display:'重庆市江北区',     sub:'西南 · 重庆主城核心',       city:'重庆',   dest:'重庆江北区',     icon:'🌆' },
+    { display:'浙江省宁波市江北区', sub:'华东 · 宁波市区',         city:'宁波',   dest:'宁波江北区',     icon:'🌊' },
+    { display:'江苏省南京市江北新区', sub:'华东 · 南京跨江新区',   city:'南京',   dest:'南京江北新区',   icon:'🏗️' },
+  ],
+  '白云': [
+    { display:'广东省广州市白云区', sub:'华南 · 广州北部',         city:'广州',   dest:'广州白云区',     icon:'☁️' },
+    { display:'贵州省贵阳市白云区', sub:'西南 · 贵阳北部',         city:'贵阳',   dest:'贵阳白云区',     icon:'🌿' },
+  ],
+  '南山': [
+    { display:'广东省深圳市南山区', sub:'华南 · 深圳科技中心',     city:'深圳',   dest:'深圳南山区',     icon:'💻' },
+    { display:'山东省烟台市南山',  sub:'华东 · 烟台景区',          city:'烟台',   dest:'烟台南山',       icon:'⛰️' },
+    { display:'黑龙江省伊春市南山', sub:'东北 · 林区',             city:'伊春',   dest:'伊春南山',       icon:'🌲' },
+  ],
+  '龙华': [
+    { display:'广东省深圳市龙华区', sub:'华南 · 深圳北部商圈',     city:'深圳',   dest:'深圳龙华区',     icon:'🏙️' },
+    { display:'海南省儋州市龙华区', sub:'华南 · 海南西部',         city:'儋州',   dest:'儋州龙华区',     icon:'🌴' },
+  ],
+  '大兴': [
+    { display:'北京市大兴区',     sub:'华北 · 北京南部，首都机场T2', city:'北京', dest:'北京大兴区',     icon:'✈️' },
+    { display:'黑龙江省大兴安岭', sub:'东北 · 原始森林自然保护区', city:'大兴安岭', dest:'大兴安岭',    icon:'🌲' },
+  ],
+  '长安': [
+    { display:'陕西省西安市长安区', sub:'西北 · 千年古都所在地',   city:'西安',   dest:'西安长安区',     icon:'🏛️' },
+    { display:'广东省东莞市长安镇', sub:'华南 · 制造业重镇',       city:'东莞',   dest:'东莞长安镇',     icon:'🏭' },
+  ],
+  '黄埔': [
+    { display:'广东省广州市黄埔区', sub:'华南 · 广州东部开发区',   city:'广州',   dest:'广州黄埔区',     icon:'🏗️' },
+    { display:'上海市黄浦区',     sub:'华东 · 上海外滩核心区',     city:'上海',   dest:'上海黄浦区',     icon:'🌃' },
+  ],
+  '东城': [
+    { display:'北京市东城区',     sub:'华北 · 故宫、天坛所在地',   city:'北京',   dest:'北京东城区',     icon:'🏯' },
+    { display:'广东省东莞市东城区', sub:'华南 · 东莞市区',         city:'东莞',   dest:'东莞东城区',     icon:'🏙️' },
+  ],
+  '新华': [
+    { display:'河北省石家庄市新华区', sub:'华北 · 石家庄主城区',   city:'石家庄', dest:'石家庄新华区',   icon:'🏙️' },
+    { display:'广东省广州市新华街道', sub:'华南 · 广州花都',       city:'广州',   dest:'广州花都新华',   icon:'🌸' },
+  ],
+  // 区名输入（通常不歧义，但缺省了所属城市）
+  '天河': [
+    { display:'广东省广州市天河区', sub:'华南 · 广州 CBD、天河城', city:'广州',   dest:'广州天河区',     icon:'🏙️' },
+  ],
+  '浦东': [
+    { display:'上海市浦东新区',   sub:'华东 · 陆家嘴、迪士尼',    city:'上海',   dest:'上海浦东新区',   icon:'🌆' },
+  ],
+  '海淀': [
+    { display:'北京市海淀区',     sub:'华北 · 中关村、清华、北大', city:'北京',   dest:'北京海淀区',     icon:'🎓' },
+  ],
+  '荔湾': [
+    { display:'广东省广州市荔湾区', sub:'华南 · 上下九步行街',     city:'广州',   dest:'广州荔湾区',     icon:'🛍️' },
+  ],
+  '番禺': [
+    { display:'广东省广州市番禺区', sub:'华南 · 长隆景区所在地',   city:'广州',   dest:'广州番禺区',     icon:'🎡' },
+  ],
+  '萧山': [
+    { display:'浙江省杭州市萧山区', sub:'华东 · 杭州机场所在地',   city:'杭州',   dest:'杭州萧山区',     icon:'✈️' },
+  ],
+  '余杭': [
+    { display:'浙江省杭州市余杭区', sub:'华东 · 良渚文化遗址',     city:'杭州',   dest:'杭州余杭区',     icon:'🏛️' },
+  ],
+  '福田': [
+    { display:'广东省深圳市福田区', sub:'华南 · 深圳中心区',       city:'深圳',   dest:'深圳福田区',     icon:'🏙️' },
+  ],
+  '罗湖': [
+    { display:'广东省深圳市罗湖区', sub:'华南 · 深圳最早开发区',   city:'深圳',   dest:'深圳罗湖区',     icon:'🛍️' },
+  ],
+  '宝安': [
+    { display:'广东省深圳市宝安区', sub:'华南 · 深圳宝安国际机场', city:'深圳',   dest:'深圳宝安区',     icon:'✈️' },
+  ],
+  '南岸': [
+    { display:'重庆市南岸区',     sub:'西南 · 南滨路、南山一棵树', city:'重庆',   dest:'重庆南岸区',     icon:'⛰️' },
+    { display:'四川省成都市南岸', sub:'西南 · 成都南部',           city:'成都',   dest:'成都南岸',       icon:'🐼' },
+  ],
+  '丰台': [
+    { display:'北京市丰台区',     sub:'华北 · 卢沟桥历史遗址',     city:'北京',   dest:'北京丰台区',     icon:'🌉' },
+  ],
+  '西城': [
+    { display:'北京市西城区',     sub:'华北 · 故宫西侧，什刹海',   city:'北京',   dest:'北京西城区',     icon:'🏯' },
+  ],
+  '房山': [
+    { display:'北京市房山区',     sub:'华北 · 周口店、十渡风景区', city:'北京',   dest:'北京房山区',     icon:'⛰️' },
+  ],
+  '延庆': [
+    { display:'北京市延庆区',     sub:'华北 · 长城、冬奥会场馆',   city:'北京',   dest:'北京延庆区',     icon:'🏔️' },
+  ],
+  '怀柔': [
+    { display:'北京市怀柔区',     sub:'华北 · 慕田峪长城',         city:'北京',   dest:'北京怀柔区',     icon:'🏯' },
+  ],
+  '密云': [
+    { display:'北京市密云区',     sub:'华北 · 密云水库、古北水镇', city:'北京',   dest:'北京密云区',     icon:'💧' },
+  ],
+};
+
+// 检查目的地是否需要消歧义（精确匹配或前缀匹配）
+function _checkAmbiguity(dest) {
+  if (!dest) return null;
+  const d = dest.trim();
+  if (_AMBIGUOUS_PLACES[d]) return { key: d, options: _AMBIGUOUS_PLACES[d] };
+  // 也检查用户是否输入了 options 里的 display 全称（此时不需要消歧义）
+  for (const [key, opts] of Object.entries(_AMBIGUOUS_PLACES)) {
+    if (opts.some(o => o.dest === d || o.display === d)) return null;
+  }
+  return null;
+}
+
+// 消歧义弹窗控制
+let _disambigCallback = null;
+
+function openDisambig(dest, options, callback) {
+  _disambigCallback = callback;
+  document.getElementById('disambigQuery').textContent = dest;
+  const isMulti = options.length > 1;
+  document.getElementById('disambigTitle').textContent = isMulti
+    ? _L('请确认目的地', 'Please clarify your destination')
+    : _L('确认所在城市', 'Confirm location');
+  document.getElementById('disambigSub').innerHTML = isMulti
+    ? `「<span id="disambigQuery2">${dest}</span>」${_L('在多个省市都有同名地点，请选择您想去的：', ' matches multiple locations — please choose one:')}`
+    : `「<span id="disambigQuery2">${dest}</span>」${_L('是以下地点的简称，请确认：', ' is an abbreviated name — please confirm:')}`;
+
+  const container = document.getElementById('disambigOptions');
+  container.innerHTML = options.map((opt, i) =>
+    `<button class="disambig-opt" onclick="selectDisambig(${i})">
+      <span class="disambig-opt-icon">${opt.icon || '📍'}</span>
+      <span class="disambig-opt-body">
+        <span class="disambig-opt-label">${opt.display}</span>
+        <span class="disambig-opt-sub">${opt.sub || ''}</span>
+      </span>
+    </button>`
+  ).join('');
+
+  // 跳过按钮文字
+  document.querySelector('.disambig-skip').textContent =
+    _L('直接使用原名搜索', 'Search with original name');
+
+  document.getElementById('disambigModal').classList.add('open');
+}
+
+function selectDisambig(idx) {
+  const query = document.getElementById('disambigQuery').textContent;
+  const options = _AMBIGUOUS_PLACES[query];
+  if (!options || !options[idx]) return closeDisambig(true);
+  const chosen = options[idx];
+
+  // 回填输入框
+  const destEl = document.getElementById('destInput');
+  destEl.value = chosen.display;
+  destEl.dataset.zh = chosen.dest;
+  destEl.dataset.city = chosen.city;  // 用于 _CLIMATE/_VISA 查询
+
+  document.getElementById('disambigModal').classList.remove('open');
+  if (_disambigCallback) { _disambigCallback(chosen); _disambigCallback = null; }
+}
+
+function closeDisambig(proceed) {
+  document.getElementById('disambigModal').classList.remove('open');
+  if (proceed && _disambigCallback) { _disambigCallback(null); }
+  _disambigCallback = null;
+}
+
 // 目的地城市选择器
 // 全部目的地城市（按地理区域排列：国内 → 近邻亚洲 → 中东 → 大洋洲 → 欧洲 → 美洲）
 const _ALL_DESTS = [
@@ -301,6 +472,8 @@ function pickDestCity(city) {
   const cityMap = I18N[_lang]?.city_map || {};
   el.value = _lang === 'en' ? (cityMap[city] || city) : city;
   el.dataset.zh = city;  // 始终保存中文名供 API 使用
+  delete el.dataset.city;          // 清除消歧义设置的主城市（选择器选的城市本身即是主城市）
+  delete el.dataset.disambigDone;  // 允许下次重新消歧义
   el.setAttribute('readonly', '');  // 恢复只读，防止系统键盘弹出
   document.getElementById('destPicker').classList.remove('open');
   // 同步热门按钮高亮（用当前显示文本匹配）
@@ -381,6 +554,20 @@ async function doSearch() {
   if (!dest) { toast(_L('请输入目的地', 'Please enter a destination'), 'err'); return; }
   if (busy) { _abortAndRestart(); return; }
 
+  // 消歧义检查：仅在用户手动输入（非从选择器选的）时触发
+  const ambig = _checkAmbiguity(dest);
+  if (ambig && !destEl.dataset.disambigDone) {
+    openDisambig(dest, ambig.options, (chosen) => {
+      destEl.dataset.disambigDone = '1';   // 防止二次触发
+      doSearch();                          // 选完后重新执行搜索
+    });
+    return;
+  }
+  delete destEl.dataset.disambigDone;      // 清除标记供下次使用
+
+  // 消歧义后可能存在 dataset.city（主城市），用于天气/签证查询；无则回退到 dest 本身
+  const climateCity = destEl.dataset.city || dest;
+
   const originEl = document.getElementById('originInput');
   const origin   = originEl.dataset.zh || originEl.value.trim();
   const days       = parseInt(document.getElementById('daysInput').value);
@@ -399,7 +586,7 @@ async function doSearch() {
     `喜欢${interests.join('、') || '观光'}，预算${budget}档${special !== '无' ? '，' + special : ''}，出发日期${startDate}。`;
 
   await callAPI({
-    city: dest, origin, days, num_people: numPeople, budget,
+    city: dest, climate_city: climateCity, origin, days, num_people: numPeople, budget,
     group, travel_mode: travelMode, special, interests,
     start_date: startDate, agent_type: curSys,
   }, label);
@@ -1225,7 +1412,8 @@ function renderSide(data, params) {
   //  天气/季节卡（所有 agent，有数据时显示）──────────────────────────────────
   const _tMonth = params.start_date ? new Date(params.start_date).getMonth() + 1 : new Date().getMonth() + 1;
   const _tSeason = _monthSeason(_tMonth);
-  const _weatherNote = data.weather_note || (_CLIMATE[params.city] && _CLIMATE[params.city][_tSeason]);
+  const _lookupCity  = params.climate_city || params.city;
+  const _weatherNote = data.weather_note || (_CLIMATE[_lookupCity] && _CLIMATE[_lookupCity][_tSeason]);
   if (_weatherNote) {
     const _seasonLabel = _lang === 'en' ? _SEASON_EN[_tSeason] : _SEASON_ZH[_tSeason];
     html += `<div class="sc2">
@@ -1242,7 +1430,7 @@ function renderSide(data, params) {
   }
 
   //  签证提醒卡（国际目的地，有签证数据时显示）──────────────────────────────
-  const _visaInfo = _VISA[params.city];
+  const _visaInfo = _VISA[_lookupCity] || _VISA[params.city];
   if (_visaInfo && params.city !== (params.origin || '')) {
     const _visaColor = _visaInfo.startsWith('🟢') ? 'var(--green)' : _visaInfo.startsWith('🔴') ? '#DC2626' : '#D97706';
     html += `<div class="sc2">

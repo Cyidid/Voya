@@ -732,6 +732,17 @@
   </footer>
 </div>
 
+<!-- 地名消歧义弹窗 -->
+<div class="modal-overlay" id="disambigModal" onclick="if(event.target===this)closeDisambig()">
+  <div class="modal-box disambig-box">
+    <div class="disambig-icon">📍</div>
+    <div class="modal-title" id="disambigTitle">请确认目的地</div>
+    <div class="modal-sub" id="disambigSub">「<span id="disambigQuery"></span>」在多个省市都有同名地点，请选择您想去的：</div>
+    <div id="disambigOptions" class="disambig-options"></div>
+    <button class="disambig-skip" onclick="closeDisambig(true)">直接使用原名搜索</button>
+  </div>
+</div>
+
 <!-- 预订弹窗 -->
 <div class="modal-overlay" id="bookingModal" onclick="if(event.target===this)closeModal()">
   <div class="modal-box">

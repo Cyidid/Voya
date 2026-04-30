@@ -686,6 +686,28 @@ body { padding-bottom: env(safe-area-inset-bottom, 0); }
 .modal-cancel { flex:1; padding:12px; border:1.5px solid var(--border); border-radius:10px; font-size:14px; font-weight:600; cursor:pointer; font-family:inherit; background:transparent; color:var(--text2); }
 .modal-confirm { flex:2; padding:12px; background:var(--accent); color:#fff; border:none; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; }
 .modal-confirm:hover { background:var(--accent-d); }
+
+/* 地名消歧义弹窗 */
+.disambig-box { text-align:center; max-width:420px; }
+.disambig-icon { font-size:36px; margin-bottom:10px; }
+.disambig-options { display:flex; flex-direction:column; gap:8px; margin:16px 0 12px; text-align:left; }
+.disambig-opt {
+  display:flex; align-items:center; gap:12px;
+  padding:12px 16px; border:1.5px solid var(--border); border-radius:12px;
+  cursor:pointer; transition:all .18s; background:#fff; font-family:inherit; width:100%;
+}
+.disambig-opt:hover { border-color:var(--accent); background:rgba(99,102,241,.05); }
+.disambig-opt-icon { font-size:22px; flex-shrink:0; }
+.disambig-opt-body { display:flex; flex-direction:column; gap:2px; }
+.disambig-opt-label { font-size:15px; font-weight:700; color:var(--text1); }
+.disambig-opt-sub { font-size:12px; color:var(--text3); }
+.disambig-skip {
+  width:100%; padding:10px; border:none; background:none;
+  font-size:13px; color:var(--text3); cursor:pointer; font-family:inherit;
+  text-decoration:underline; text-underline-offset:3px;
+}
+.disambig-skip:hover { color:var(--text2); }
+
 .order-card { border:1.5px solid var(--border); border-radius:12px; padding:16px 20px; margin-bottom:10px; }
 .order-hd { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
 .order-id { font-size:12px; color:var(--text3); }
