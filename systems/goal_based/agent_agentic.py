@@ -5,9 +5,6 @@
   2. 是否需要查询本地知识库
   3. 何时开始生成行程
   4. 是否需要补充细节
-
-这与课程要求的 Goal-Based 系统一致：
-  "The AI is given a high-level goal and freedom to determine its own process and solution."
 """
 
 import os
@@ -31,9 +28,9 @@ except ImportError:
 try:
     from systems.config import GOAL_BASED_CONFIG
 except ImportError:
-    GOAL_BASED_CONFIG = {"use_real_llm": True, "model_name": "doubao-seed-1-8-251228"}
+    GOAL_BASED_CONFIG = {"use_real_llm": True, "model_name": "qwen3.6-plus"}
 
-# ── Agent 系统提示词 ──────────────────────────────────────────────
+# Agent 系统提示词
 AGENT_SYSTEM_PROMPT = """你是一位专业的全球旅游规划顾问，擅长为不同类型的旅行者制定个性化、详尽、实用的旅行行程。你的规划必须融合天气、人员组成、兴趣偏好和实用信息四个核心维度，避免千篇一律的通用模板。
 
 【工具使用策略】
@@ -104,8 +101,10 @@ AGENT_SYSTEM_PROMPT = """你是一位专业的全球旅游规划顾问，擅长�
 - 餐厅名称 — 菜系/特色，人均约 XX 元
   - 推荐菜品 / 点单建议（是否儿童友好/无障碍）
 
+> 🚇 **前往午餐**：写明从上午最后一个景点到餐厅的交通方式（地铁线路+站名/步行分钟数/打车费用区间），并注明所需时间，例如：地铁 X 线 → Y 站（约 12 分钟，¥4）/ 步行约 8 分钟 / 打车约 ¥15–25
+
 **下午**
-- （同上午格式）
+- （同上午格式，每个景点结束后同样附上前往下一站的交通说明）
 
 **晚餐推荐**
 - 餐厅名称 — 特色，人均约 XX 元
@@ -122,16 +121,19 @@ AGENT_SYSTEM_PROMPT = """你是一位专业的全球旅游规划顾问，擅长�
 ## 住宿建议
 按预算档次推荐 2-3 个住宿区域或具体酒店，说明位置优势、价格区间，以及对特定人群（家庭/情侣/单人）的适合度。
 
-## 预算参考
+## 预算参考（{人数}人，{天数}天，参考估算）
 | 项目 | 预估费用（人民币）|
 |------|-----------------|
-| 国际/国内交通 | ¥X,XXX |
-| 当地交通 | ¥XXX |
+| 国际往返机票（{人数}人）| ¥X,XXX（经济舱参考，节假日上浮） |
+| 当地交通（地铁/打车）| ¥XXX |
 | 住宿（X 晚）| ¥X,XXX |
 | 餐饮 | ¥XXX |
 | 景点门票 | ¥XXX |
 | 购物/其他 | ¥XXX |
-| **人均合计** | **¥X,XXX** |
+| **合计** | **¥X,XXX** |
+| **人均** | **¥X,XXX** |
+
+> ⚠️ 机票价格受出发日期、舱位和购买时间影响较大，以上为参考区间，实际价格请以出行前实时查询为准。
 
 ## 实用信息
 - **签证**：中国公民前往是否需要签证，办理渠道
@@ -143,6 +145,7 @@ AGENT_SYSTEM_PROMPT = """你是一位专业的全球旅游规划顾问，擅长�
 ---
 
 【内容质量要求】
+- **景点间交通必须写明**：每个活动/景点结束后，用 `> 🚇 **前往下一站**：` 格式注明到下一个景点/餐厅的交通方式（地铁/步行/打车），包含线路、站名、时间、参考费用。这是强制要求，不可省略。
 - 每日安排具体到时间段（上午/午餐/下午/晚餐/晚上），不要只列景点名称
 - 餐厅推荐要有菜系、人均消费、推荐菜品，不要泛泛而谈
 - 票价、时长等数据尽量精确，来自工具搜索结果优先
@@ -159,7 +162,7 @@ AGENT_SYSTEM_PROMPT = """你是一位专业的全球旅游规划顾问，擅长�
 
 【输出要求】请直接利用自身知识生成行程。内容越详实越好——每天景点、餐饮、交通、小贴士都要写充分，不要因为篇幅限制而截断或跳过任何天数。模型本身具备丰富的全球旅行信息，请充分发挥，输出完整的高质量方案。"""
 
-# ── 工具定义（function calling 格式）────────────────────────────────────
+#  工具定义（function calling 格式）
 TOOLS = [
     {
         "type": "function",
@@ -215,8 +218,7 @@ TOOLS = [
 ]
 
 
-# ── 工具执行函数 ─────────────────────────────────────────────────────────
-
+# 工具执行函数
 def _execute_search_web(args: dict, search_client) -> str:
     """执行网络搜索"""
     query = args.get("query", "")
@@ -275,8 +277,7 @@ def _execute_query_knowledge(args: dict, knowledge_client) -> str:
         return f"[知识库查询失败: {e}]"
 
 
-# ── 主智能体类 ────────────────────────────────────────────────────────────
-
+# 主智能体类
 class TravelPlanningAgent:
     """旅游规划智能体 - Agentic AI"""
 
@@ -284,10 +285,10 @@ class TravelPlanningAgent:
     _cache_max_size: int = 30
 
     def __init__(self, enable_knowledge: bool = True, enable_web_search: bool = True):
-        self.model_name = GOAL_BASED_CONFIG.get("model_name", "doubao-seed-1-8-251228")
-        self.temperature = GOAL_BASED_CONFIG.get("temperature", 0.7)
-        self.max_tokens = GOAL_BASED_CONFIG.get("max_tokens", 2000)
-        self.max_tool_rounds = 1 # Agent 最多调用工具的轮数（速度优先，默认 1 轮）
+        self.model_name = GOAL_BASED_CONFIG.get("model_name", "qwen3.6-plus")
+        self.temperature = GOAL_BASED_CONFIG.get("temperature", 0.75)
+        self.max_tokens = GOAL_BASED_CONFIG.get("max_tokens", 8192)
+        self.max_tool_rounds = 3 # Agent 最多调用工具的轮数
         self.agent_steps: list = [] # 记录 Agent 的决策过程
 
         # 初始化 LLM 客户端
@@ -348,7 +349,13 @@ class TravelPlanningAgent:
             result = f"[未知工具: {tool_name}]"
 
         elapsed = round(time.time() - t0, 2)
-        preview = result[:100].replace("\n", " ")
+        # 生成可读 preview：知识库显示"城市 · 查询关键词"，搜索显示查询词
+        if tool_name == "query_knowledge_base":
+            preview = f"{args.get('city', '')} · {args.get('query', '')}".strip(" ·")
+        elif tool_name == "search_web":
+            preview = args.get("query", result[:80].replace("\n", " "))
+        else:
+            preview = result[:100].replace("\n", " ")
         logger.debug(f"{tool_name} 完成 ({elapsed}s)")
 
         self.agent_steps.append({
@@ -371,7 +378,7 @@ class TravelPlanningAgent:
         city = meta.get("city", "")
         logger.info(f"智能体启动：规划 {city} {meta.get('days')}天行程")
 
-        # ── 主动预查询知识库，注入本地实景数据 ────────────────────────
+        # 主动预查询知识库，注入本地实景数据
         kb_context = ""
         if self.knowledge_client and city:
             try:
@@ -384,7 +391,7 @@ class TravelPlanningAgent:
             except Exception as e:
                 logger.warning(f"知识库预查询失败: {e}")
 
-        # ── 构建初始消息 ────────────────────────────────────────────────
+        # 构建初始消息
         messages = [
             {"role": "system", "content": AGENT_SYSTEM_PROMPT},
             {"role": "user", "content": user_request + kb_context},
@@ -394,19 +401,15 @@ class TravelPlanningAgent:
         final_output = ""
         tool_rounds = 0
 
-        # ── Agent 循环 ───────────────────────────────────────────────────
-        # extra_body: 关闭扩展思维链（Qwen3 / 豆包系列），大幅降低延迟
-        _extra = {"enable_thinking": False}
-
+        # Agent 循环
         while tool_rounds <= self.max_tool_rounds:
             response = self.client.chat.completions.create(
                 model=self.model_name,
                 messages=messages,
                 tools=TOOLS,
-                tool_choice="none",   # 直接生成，不调用外部工具，速度最快
+                tool_choice="none",
                 temperature=self.temperature,
                 max_tokens=self.max_tokens,
-                extra_body=_extra,
             )
 
             choice = response.choices[0]
@@ -454,15 +457,6 @@ class TravelPlanningAgent:
             "using_real_llm": True,
             "cache_hit": False,
             "response_time": processing_time,
-            "responsible_ai": {
-                "transparency": f"Agent 执行 {tool_rounds} 轮工具调用；决策轨迹完整记录于 agent_steps，可供审查",
-                "tools_used": list(set(tool_types)),
-                "non_deterministic": True,
-                "hallucination_risk": "LLM 可能生成未经核实的景点/价格信息，建议出行前自行验证",
-                "data_sources": [s for s in (["Tavily 实时网络搜索"] if "search_web" in tool_types else []) + (["ChromaDB 本地知识库"] if "query_knowledge_base" in tool_types else []) + [f"LLM 参数知识（{self.model_name}）"]],
-                "cultural_bias": "LLM 训练数据可能对不同地区/文化存在覆盖不均的偏差",
-                "accountability": "责任归属：AI 生成内容仅供参考，用户需自行判断并承担最终决策责任",
-            },
         }
 
         if use_cache:
@@ -491,7 +485,7 @@ class TravelPlanningAgent:
                    "tool_rounds": 0, "agent_steps": []}
             return
 
-        # ── 工具预查询：知识库 + 实时联网 ──────────────────────────
+        # 工具预查询：知识库 + 实时联网
         extra_context = ""
         tool_steps = []
         tool_rounds = 0

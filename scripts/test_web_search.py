@@ -76,7 +76,7 @@ def test_web_search_cities():
 
         # 创建Agent并生成行程
         agent = GoalBasedAgent(
-            model_name="doubao-seed-1-8-251228",
+            model_name="qwen3.6-plus",
             enable_knowledge=True,
             enable_web_search=True  # 启用 Web Search
         )

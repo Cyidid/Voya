@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Phase 2B：Supervised System 批量测试
-先训练模型（1000条数据集），再运行全部测试用例记录 inputs/outputs。
+先训练模型（10000条数据集），再运行全部测试用例记录 inputs/outputs。
 提交物：results/phase2b_outputs.csv + results/phase2b_outputs.json
          systems/supervised/training_dataset.json（训练数据集）
          systems/supervised/model.pkl（训练好的模型）

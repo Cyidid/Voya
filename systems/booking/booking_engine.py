@@ -14,7 +14,7 @@ from typing import Optional
 
 _ORDERS_PATH = os.path.join(os.path.dirname(__file__), "../../assets/orders/orders.json")
 
-# ─────────────────────────────────────────────────────────────────
+#
 # 真实国际航线数据库
 # 字段说明：
 #   airline  航空公司中文名
@@ -26,7 +26,7 @@ _ORDERS_PATH = os.path.join(os.path.dirname(__file__), "../../assets/orders/orde
 #   via      经停城市（stops>0 时填写）
 #   econ     经济舱参考区间 [低, 高]（人民币）
 #   biz      商务舱参考区间 [低, 高]（人民币）
-# ─────────────────────────────────────────────────────────────────
+#
 REAL_INTL_ROUTES: dict[tuple, list] = {
 
     # ══════════ 上海出发 ══════════
@@ -226,9 +226,9 @@ REAL_INTL_ROUTES: dict[tuple, list] = {
     ],
 }
 
-# ─────────────────────────────────────────────────────────────────
+#
 # 真实国内高铁数据库
-# ─────────────────────────────────────────────────────────────────
+#
 REAL_TRAIN_ROUTES: dict[tuple, list] = {
     ("上海", "北京"): [
         {"code":"G1",  "type":"高铁","dep":"08:00","arr":"12:18","duration":"4h18m","second":553, "first":933,  "business":1748},
@@ -321,9 +321,9 @@ REAL_TRAIN_ROUTES: dict[tuple, list] = {
     ],
 }
 
-# ─────────────────────────────────────────────────────────────────
+#
 # 备用基准价（路线不在数据库中时使用）
-# ─────────────────────────────────────────────────────────────────
+#
 DOMESTIC_CITIES = [
     "上海", "北京", "广州", "深圳", "成都", "杭州", "武汉",
     "重庆", "西安", "南京", "天津", "青岛", "厦门", "昆明",
@@ -346,9 +346,9 @@ _DURATION_NEAR = {"东京","首尔","曼谷","新加坡","普吉岛","马尔代�
 _DURATION_MID  = {"迪拜","悉尼"}
 
 
-# ─────────────────────────────────────────────────────────────────
+#
 # 价格扰动：同一查询稳定，不同日期/舱位有合理浮动
-# ─────────────────────────────────────────────────────────────────
+#
 def _price_vary(base: int, seed: str, factor: float = 0.15) -> int:
     """MD5 稳定扰动，factor=15% 区间随机"""
     h = int(hashlib.md5(seed.encode()).hexdigest()[:8], 16)
@@ -357,15 +357,28 @@ def _price_vary(base: int, seed: str, factor: float = 0.15) -> int:
 
 
 def _date_multiplier(date_str: str) -> float:
-    """日期系数：周末/节假日 ×1.25，旺季(7-8月/国庆/春节前后) ×1.40"""
+    """日期系数：黄金周 ×1.55，旺季 ×1.40，小旺季 ×1.30，周末 ×1.20"""
     try:
         dt = datetime.strptime(date_str, "%Y-%m-%d")
-        m = dt.month
-        # 旺季
-        if m in (7, 8, 1):
+        m, d = dt.month, dt.day
+        # 黄金周：五一(5/1-5)、国庆(10/1-7)、春节(1/20-2/10 窗口)
+        if (m == 5 and 1 <= d <= 5) or (m == 10 and 1 <= d <= 7):
+            return 1.55
+        if (m == 1 and d >= 20) or (m == 2 and d <= 10):
+            return 1.55
+        # 旺季：暑假 7-8月，元旦
+        if m in (7, 8) or (m == 1 and d <= 3):
             return 1.40
-        # 小旺季
-        if m in (10, 2):
+        # 小旺季：清明(4/3-6)、端午(6/10-12)、中秋(9/13-15)、春节后(2月中下旬)、国庆后(10月中下旬)
+        if m == 4 and 3 <= d <= 6:      # 清明
+            return 1.30
+        if m == 6 and 10 <= d <= 12:    # 端午
+            return 1.30
+        if m == 9 and 13 <= d <= 15:    # 中秋
+            return 1.30
+        if m == 2 and d >= 11:          # 春节后尾声（含闰年2月29日）
+            return 1.30
+        if m == 10 and d >= 8:          # 国庆后
             return 1.30
         # 周末
         if dt.weekday() >= 5:
@@ -375,9 +388,43 @@ def _date_multiplier(date_str: str) -> float:
         return 1.0
 
 
-# ─────────────────────────────────────────────────────────────────
+def _seats_available(date_str: str, capacity: int, seed: str) -> int:
+    """
+    根据日期紧张程度计算余票数。
+    黄金周：2-15%；旺季：15-40%；周末：40-70%；平日：60-95%
+    同一 (日期+航班) seed 结果确定（不随时间漂移）。
+    """
+    try:
+        dt = datetime.strptime(date_str, "%Y-%m-%d")
+        m, d = dt.month, dt.day
+
+        is_golden = ((m == 5 and 1 <= d <= 5)
+                     or (m == 10 and 1 <= d <= 7)
+                     or (m == 1 and d >= 20)
+                     or (m == 2 and d <= 10))
+        is_peak   = m in (7, 8) or (m == 4 and 3 <= d <= 6)
+        is_weekend = dt.weekday() >= 5
+
+        h = int(hashlib.md5(seed.encode()).hexdigest()[:6], 16)
+        ratio = h / 0xFFFFFF  # 0~1 均匀
+
+        if is_golden:
+            pct = 0.02 + ratio * 0.13   # 2-15%
+        elif is_peak:
+            pct = 0.15 + ratio * 0.25   # 15-40%
+        elif is_weekend:
+            pct = 0.40 + ratio * 0.30   # 40-70%
+        else:
+            pct = 0.60 + ratio * 0.35   # 60-95%
+
+        return max(1, int(capacity * pct))
+    except Exception:
+        return capacity // 2
+
+
+#
 # 搜索接口
-# ─────────────────────────────────────────────────────────────────
+#
 def search_tickets(
     origin: str,
     destination: str,
@@ -392,7 +439,7 @@ def search_tickets(
     """
     date_mult = _date_multiplier(date)
 
-    # ── 火车票 ──────────────────────────────────────────────────
+    # 火车票
     if ticket_type == "train":
         trains = REAL_TRAIN_ROUTES.get((origin, destination), [])
         if not trains:
@@ -415,8 +462,11 @@ def search_tickets(
                 seats_to_show.append(("商务座", biz))
 
             for seat_name, price in seats_to_show:
+                ticket_id = f"{t['code']}-{date.replace('-','')}-{seat_name}"
+                # 高铁定员：二等座~1000，一等座~200，商务座~32
+                train_cap = 1000 if seat_name == "二等座" else (200 if seat_name == "一等座" else 32)
                 results.append({
-                    "id": f"{t['code']}-{date.replace('-','')}-{seat_name}",
+                    "id": ticket_id,
                     "type": "train",
                     "train_type": t["type"],
                     "code": t["code"],
@@ -427,7 +477,7 @@ def search_tickets(
                     "duration": t["duration"],
                     "price": round(price * date_mult),
                     "seat": seat_name,
-                    "seats": 200,  # 高铁余票通常充足
+                    "seats": _seats_available(date, train_cap, ticket_id),
                 })
 
         if not results:
@@ -435,7 +485,7 @@ def search_tickets(
         results.sort(key=lambda x: x["price"])
         return results
 
-    # ── 机票 ────────────────────────────────────────────────────
+    # 机票
     route_key = (origin, destination)
     flights = REAL_INTL_ROUTES.get(route_key, [])
 
@@ -454,9 +504,10 @@ def search_tickets(
         via_str  = f.get("via", "")
         stop_label = "直飞" if stop_str == 0 else f"经停{via_str}"
 
+        econ_id = f"{f['code']}-{date.replace('-','')}-econ"
         # 经济舱条目
         results.append({
-            "id": f"{f['code']}-{date.replace('-','')}-econ",
+            "id": econ_id,
             "type": "flight",
             "airline": f["airline"],
             "code": f["code"],
@@ -469,7 +520,7 @@ def search_tickets(
             "cabin": "经济舱",
             "stops": stop_str,
             "stop_label": stop_label,
-            "seats": 45,
+            "seats": _seats_available(date, 180, econ_id),  # 经济舱约180座
             "data_note": "参考数据，以航司实时报价为准",
         })
 
@@ -478,12 +529,13 @@ def search_tickets(
             blo, bhi = f["biz"]
             biz_base  = (blo + bhi) // 2
             biz_price = round(_price_vary(biz_base, seed + "b", 0.15) * date_mult)
+            biz_id = f"{f['code']}-{date.replace('-','')}-biz"
             results.append({
                 **results[-1],
-                "id": f"{f['code']}-{date.replace('-','')}-biz",
+                "id": biz_id,
                 "cabin": "商务舱",
                 "price": biz_price,
-                "seats": 12,
+                "seats": _seats_available(date, 24, biz_id),  # 商务舱约24座
             })
 
     results.sort(key=lambda x: x["price"])
@@ -491,9 +543,9 @@ def search_tickets(
 
 
 
-# ─────────────────────────────────────────────────────────────────
+#
 # 订单管理（不变）
-# ─────────────────────────────────────────────────────────────────
+#
 def _load_orders() -> dict:
     os.makedirs(os.path.dirname(_ORDERS_PATH), exist_ok=True)
     if not os.path.exists(_ORDERS_PATH):

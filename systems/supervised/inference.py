@@ -27,7 +27,17 @@ except ImportError:
     SKLEARN_AVAILABLE = False
     logger.warning("sklearn 未安装，请运行: pip install scikit-learn")
 
-# ── 推荐类型定义 ──────────────────────────────────────────
+try:
+    from systems.rule_based.engine import RULES as _RULES_DB
+except ImportError:
+    try:
+        import sys as _sys
+        _sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        from systems.rule_based.engine import RULES as _RULES_DB
+    except ImportError:
+        _RULES_DB = {}
+
+# 推荐类型定义
 RECOMMENDATION_TYPES = {
     0: "budget_sightseeing", # 经济观光
     1: "cultural_deep_dive", # 文化深度游
@@ -50,7 +60,7 @@ RECOMMENDATION_LABELS_ZH = {
     7: "团队社交游",
 }
 
-# ── 特征列表（用于可解释性）────────────────────────────────
+#  特征列表（用于可解释性）
 FEATURE_NAMES = [
     "days", "budget_level", "num_people", "group_type",
     "has_special", "travel_mode",
@@ -96,15 +106,262 @@ CITY_DAILY_BUDGET = {
     "维也纳": {"低": 450, "中": 1000, "高": 3000}, "布拉格": {"低": 250, "中": 600, "高": 1800},
     "普吉岛": {"低": 180, "中": 450, "高": 1600}, "马尔代夫": {"低": 600, "中": 1800, "高": 6000},
     "伊斯坦布尔": {"低": 220, "中": 550, "高": 1800}, "里斯本": {"低": 300, "中": 750, "高": 2200},
+    "大阪": {"低": 380, "中": 850, "高": 2600}, "京都": {"低": 350, "中": 800, "高": 2400},
+    "广州": {"低": 150, "中": 380, "高": 1200}, "开罗": {"低": 120, "中": 350, "高": 1200},
+    "哥本哈根": {"低": 600, "中": 1400, "高": 4200}, "苏黎世": {"低": 700, "中": 1600, "高": 4800},
+    "巴厘岛": {"低": 150, "中": 400, "高": 1400},
+}
+
+# 推荐类型 → RULES 景点分类（上午分类，下午分类）
+_REC_TYPE_RULES_CATS: dict[int, tuple[str, str]] = {
+    0: ("nature",    "culture"),
+    1: ("culture",   "history"),
+    2: ("culture",   "shopping"),
+    3: ("nature",    "culture"),
+    4: ("food",      "shopping"),
+    5: ("nature",    "nature"),
+    6: ("nature",    "culture"),
+    7: ("nightlife", "food"),
+}
+
+_CAT_DETAIL: dict[str, str] = {
+    "culture":   "欣赏丰富的文化艺术展陈，感受城市人文积淀",
+    "history":   "深入了解历史背景，感受厚重的历史文化",
+    "nature":    "漫步自然风光区域，享受清新空气与开阔视野",
+    "food":      "品尝当地招牌美食，体验地道饮食文化",
+    "shopping":  "逛街选购，挑选心仪的本地特产与纪念品",
+    "nightlife": "感受城市夜晚活力，体验当地独特的夜生活",
+    "outdoor":   "户外探索，亲近自然，体验真实的地方风貌",
 }
 
 
-# ── 训练数据生成 ───────────────────────────────────────────
+def _rules_activities_for_city(city: str, rec_type: int) -> dict:
+    """从 RULES 景点库提取该城市的上午/下午活动列表，格式与 CITY_TYPE_ACTIVITIES 一致。"""
+    attractions = _RULES_DB.get(city, {}).get("attractions", {})
+    if not attractions:
+        return {}
+    morning_cat, afternoon_cat = _REC_TYPE_RULES_CATS.get(rec_type, ("culture", "nature"))
 
+    def _to_pairs(cat: str) -> list:
+        names = attractions.get(cat, [])
+        if not names:
+            # 分类无数据时取第一个有内容的分类兜底
+            for v in attractions.values():
+                if v:
+                    names = v
+                    break
+        detail = _CAT_DETAIL.get(cat, "参观游览，探索城市风貌")
+        return [(name, detail) for name in names]
+
+    mornings = _to_pairs(morning_cat)
+    afternoons = _to_pairs(afternoon_cat)
+    if not mornings and not afternoons:
+        return {}
+    return {"mornings": mornings, "afternoons": afternoons}
+
+
+# 城市 × 推荐类型 → 具体真实景点
+CITY_TYPE_ACTIVITIES = {
+    "东京": {
+        1: {
+            "mornings": [
+                ("东京国立博物馆", "上野公园内的日本最大综合性博物馆，馆藏11万件国宝级文物"),
+                ("浅草寺·雷门", "东京最古老的寺庙，仲见世通商业街淘和果子伴手礼"),
+                ("根津美术馆", "隈研吾设计的竹林步道庭院，禅意与艺术的完美结合"),
+                ("江户东京博物馆", "实景还原江户时代街景，沉浸式体验日本历史"),
+            ],
+            "afternoons": [
+                ("上野公园漫步", "博物馆西侧的百年公园，樱花季和红叶季美不胜收"),
+                ("根津神社·千本鸟居", "隐藏在居民区的神社，迷你版伏见稻荷大社"),
+                ("谷中银座商店街", "下町风情的百年老街，可乐饼和烤团子必吃"),
+            ],
+        },
+        3: {
+            "mornings": [
+                ("台场TeamLab Borderless", "全球最大沉浸式数字艺术馆，孩子可以触摸光影互动"),
+                ("上野动物园", "亚洲现存最古老的动物园，大熊猫'香香'是人气明星"),
+                ("东京迪士尼乐园", "全球唯一拥有海洋和陆地两大主题园区的迪士尼"),
+            ],
+            "afternoons": [
+                ("台场海滨公园", "自由女神像前拍全家福，彩虹大桥海景尽收眼底"),
+                ("葛西临海水族馆", "金枪鱼大水槽和企鹅漫步，孩子最爱的水族馆"),
+            ],
+        },
+        5: {
+            "mornings": [
+                ("高尾山徒步", "东京近郊最热门登山路线，山顶可远眺富士山"),
+                ("多摩川骑行", "沿河岸骑行30km，春天樱花隧道美不胜收"),
+                ("箱根温泉徒步", "穿越箱根国立公园原始林道，徒步后泡露天温泉"),
+            ],
+            "afternoons": [
+                ("奥多摩湖皮划艇", "在东京最清澈的高山湖泊划独木舟"),
+                ("御岳溪谷溯溪", "东京都内难得的溯溪体验，夏季避暑首选"),
+            ],
+        },
+    },
+    "巴黎": {
+        1: {
+            "mornings": [
+                ("卢浮宫深度参观", "世界最大博物馆，蒙娜丽莎、断臂维纳斯必看馆藏"),
+                ("奥赛博物馆", "印象派殿堂，莫奈睡莲、梵高星空尽收眼底"),
+                ("蓬皮杜艺术中心", "当代艺术旗舰展馆，顶层餐厅俯瞰巴黎全景"),
+                ("玛黑区文艺复兴馆", "雨果故居博物馆，隐藏的文艺复兴庭院"),
+            ],
+            "afternoons": [
+                ("拉丁区漫步", "先贤祠到莎士比亚书店的文学朝圣之路"),
+                ("蒙马特画家广场", "小丘广场看街头画家写生，圣心堂俯瞰全城"),
+                ("杜乐丽花园", "卢浮宫与协和广场之间的皇家花园"),
+            ],
+        },
+        3: {
+            "mornings": [
+                ("巴黎迪士尼乐园", "欧洲唯一迪士尼，睡美人城堡和加勒比海盗必玩"),
+                ("卢森堡公园木马", "百年旋转木马+帆船池，巴黎人周末遛娃首选"),
+                ("自然历史博物馆", "大画廊的恐龙化石和进化馆让孩子大开眼界"),
+            ],
+            "afternoons": [
+                ("凡尔赛宫花园", "法式园林巅峰，镜宫和小特里亚农宫漫步"),
+                ("科学工业城", "欧洲最大科技馆，潜艇实体和互动实验室超好玩"),
+            ],
+        },
+        5: {
+            "mornings": [
+                ("凡尔赛宫花园骑行", "租自行车穿越法式园林，镜宫和大运河不可错过"),
+                ("枫丹白露森林徒步", "巴黎人最爱的近郊徒步地，枫丹白露宫半日联游"),
+            ],
+            "afternoons": [
+                ("塞纳河皮划艇", "从埃菲尔铁塔下划船穿过，最独特的巴黎视角"),
+                ("蒙马特高地徒步", "艺术家聚集地，圣心堂俯瞰巴黎全城"),
+            ],
+        },
+    },
+    "首尔": {
+        1: {
+            "mornings": [
+                ("景福宫深度游览", "朝鲜王朝最宏伟宫殿，换上韩服免费入场，正点换岗仪式必看"),
+                ("国立中央博物馆", "韩国最大博物馆，馆藏40万件文物，常设展览免费开放"),
+                ("北村韩屋村", "保存最完好的朝鲜时代民居群，晨间人少，适合漫步拍照"),
+                ("昌德宫秘苑", "联合国世界遗产，需提前预约，朝鲜王室后花园禁苑"),
+            ],
+            "afternoons": [
+                ("仁寺洞文化街", "传统工艺品与现代艺术廊混搭，淘传统茶具和手工纸的好去处"),
+                ("益善洞韩屋咖啡街", "旧韩屋改建的网红咖啡区，传统建筑与精品咖啡的完美融合"),
+                ("首尔历史博物馆", "从朝鲜时代到现代首尔的城市变迁，免费参观"),
+            ],
+        },
+        3: {
+            "mornings": [
+                ("乐天世界", "室内外结合的主题乐园，冰上溜冰场和魔幻岛是孩子最爱"),
+                ("爱宝乐园", "韩国最大主题乐园，玫瑰花节和雪橇坡道各季节主题丰富"),
+                ("首尔儿童大公园", "免费动物园+植物园，适合7岁以下小朋友的轻松半日游"),
+            ],
+            "afternoons": [
+                ("63大厦水族馆", "汉江边地标建筑，顶层观景台360度俯瞰首尔全景"),
+                ("汉江公园亲子骑行", "租用四人自行车沿汉江骑行，野餐垫+便利店炸鸡是标配"),
+                ("롯데月드 水族馆", "室内大型水族馆，企鹅和白鲸是孩子们的人气明星"),
+            ],
+        },
+        4: {
+            "mornings": [
+                ("广藏市场", "首尔现存最古老的传统市场，绿豆煎饼和麻药紫菜包饭是必吃招牌"),
+                ("通仁市场铜钱便当", "用古代铜钱换取各摊位小吃，拼出独一无二的便当午餐"),
+                ("망원시장", "当地人气集市，年糕、炒码面和血肠比游客区便宜一半"),
+            ],
+            "afternoons": [
+                ("明洞购物街", "韩国美妆集中地，护肤品打折力度大，街头小吃摊贩密集"),
+                ("东大门设计广场", "扎哈·哈迪德设计的未来感建筑，周边批发市场24小时营业"),
+                ("弘大自由市场", "周末艺术家摆摊的创意市集，独立品牌和手工饰品是挖宝好去处"),
+            ],
+        },
+    },
+    "新加坡": {
+        1: {
+            "mornings": [
+                ("新加坡国家博物馆", "新加坡历史最久的博物馆，玻璃穹顶建筑本身就是艺术品"),
+                ("牛车水历史街区", "保存完好的华人聚居地，佛牙寺和斯里玛里安曼兴都庙相距百米"),
+                ("小印度区漫步", "穆斯塔法购物中心和竹脚市场是感受南亚文化的最佳入口"),
+                ("甘榜格南马来文化区", "苏丹回教堂和哈芝巷壁画街，多元文化在此交汇"),
+            ],
+            "afternoons": [
+                ("国家美术馆", "前最高法院改建，东南亚最大现代艺术展馆，建筑本身值得参观"),
+                ("福康宁公园历史步道", "从莱佛士登陆地到二战历史的城市核心绿地徒步路线"),
+                ("土生华人博物馆", "娘惹文化的最佳展示地，精美瓷器和刺绣工艺令人叹为观止"),
+            ],
+        },
+        3: {
+            "mornings": [
+                ("圣淘沙环球影城", "东南亚唯一环球影城，变形金刚和哈利波特区孩子最爱"),
+                ("新加坡动物园", "开放式无笼设计，长鼻猿和红毛猩猩可近距离互动，早餐与猩猩同乐"),
+                ("滨海湾花园", "擎天树丛和花穹温室是网红打卡地，夜间灯光秀免费观看"),
+            ],
+            "afternoons": [
+                ("S.E.A.水族馆", "世界最大水族馆之一，鲸鲨大水槽震撼人心"),
+                ("新加坡科学馆", "700+互动展项，适合6岁以上儿童深度探索半天"),
+                ("飞禽公园", "新加坡最大鸟园，企鹅冰域和犀鸟展区是孩子的最爱"),
+            ],
+        },
+        4: {
+            "mornings": [
+                ("老巴刹", "维多利亚时代铸铁建筑内的熟食中心，沙爹和炒粿条是必点招牌"),
+                ("麦士威熟食中心", "天天海南鸡饭总店所在地，需早到排队，营业到下午2点"),
+                ("牛车水美食街", "正宗叻沙、肉骨茶和炒萝卜糕集中地，早市尤其热闹"),
+            ],
+            "afternoons": [
+                ("乌节路购物带", "ION Orchard到313地下商城无缝连接，覆盖全价位品牌"),
+                ("哈芝巷", "改建仓库群聚集独立设计师店和精品咖啡馆，拍照和购物兼得"),
+                ("新达城双螺旋桥", "滨海湾周边逛精品店，结束前在金沙观景台俯瞰夜景"),
+            ],
+        },
+    },
+    "迪拜": {
+        2: {
+            "mornings": [
+                ("帆船酒店水疗体验", "全球唯一七星酒店，非住客可预订下午茶或水疗套餐入场"),
+                ("迪拜购物中心私人导购", "全球最大购物中心，预约高端VIP购物顾问享私享折扣"),
+                ("沙漠豪华营地热气球", "清晨飞越红色沙丘，着陆后享受贝都因风情早餐和骆驼骑乘"),
+            ],
+            "afternoons": [
+                ("棕榈岛游艇游览", "包租私人游艇环绕棕榈岛，亚特兰蒂斯酒店正面视角最佳"),
+                ("哈利法塔顶层观景台", "160层At the Top Sky，日落前30分钟入场光线最美"),
+                ("阿联酋宫殿酒店下午茶", "阿布扎比黄金宫殿内的奢华下午茶，金箔装饰甜品"),
+            ],
+        },
+        3: {
+            "mornings": [
+                ("IMG世界冒险乐园", "室内全球最大主题乐园，漫威和卡通频道主题区孩子疯狂"),
+                ("迪拜乐高乐园", "专为10岁以下孩子设计，20000块乐高砖还原迪拜地标"),
+                ("Green Planet热带雨林", "室内生物穹顶，蝙蝠和懒树熊近距离接触，雨林生态体验"),
+            ],
+            "afternoons": [
+                ("迪拜购物中心水族馆", "33000只海洋生物的巨型水槽，玻璃通道穿越鲨鱼群"),
+                ("Ski Dubai室内滑雪", "沙漠中的真实滑雪场，提供全套装备，适合初学者体验"),
+                ("迪拜溪畔水上出租车", "传统Abra木船横渡迪拜溪，金光闪闪的黄金市场就在对岸"),
+            ],
+        },
+        4: {
+            "mornings": [
+                ("黄金市场", "全球最大黄金珠宝集散地，砍价是规矩，建议多家比价"),
+                ("香料市场", "藏红花、乳香和阿拉伯香料一条街，价格是超市的三分之一"),
+                ("迪拜溪畔老市场", "传统织物市场和皮革制品集散地，Abra渡船连接两岸市场"),
+            ],
+            "afternoons": [
+                ("全球美食广场·迪拜购物中心", "汇聚全球200+餐厅，能俯瞰哈利法塔喷泉秀的座位最抢手"),
+                ("JBR海滩漫步", "朱美拉海滨步道餐厅和街头小吃并存，网红沙滩打卡地"),
+                ("阿拉伯夜市", "City Walk或La Mer海滨市集，阿拉伯烤肉和甜点摊位错落有致"),
+            ],
+        },
+    },
+}
+
+
+# 训练数据生成
 def _expert_label(f: dict) -> int:
     """
     专家规则：根据特征生成训练标签。
     这模拟了"人工标注"的过程，让模型从这些模式中学习。
+
+    优化：引入软规则，减少硬性优先级导致的群体锁定问题。
+    每个规则增加更多条件分支，避免单一条件直接决定结果。
     """
     budget = f["budget_level"] # 0=低, 1=中, 2=高
     has_special = f["has_special"] # 1=有特殊需求
@@ -119,11 +376,17 @@ def _expert_label(f: dict) -> int:
     nightlife = f["interest_nightlife"]
     days = f["days"]
 
-    # 优先级1：情侣 + 高预算 → 情侣浪漫游
     if group_type == 1 and budget == 2:
         return 6
-    # 优先级2：家庭 + 特殊需求 → 亲子家庭游
     if group_type == 3 and has_special == 1:
+        if culture + history >= 1 and food + shopping == 0:
+            return 1
+        if food + shopping >= 1 and culture + history == 0:
+            return 4
+        if outdoor + nature >= 1 and days >= 3:
+            return 5
+        return 3
+    if group_type == 3:  # 家庭出行（无特殊需求）→ 亲子家庭游
         return 3
     # 优先级3：户外/自然兴趣 + 天数>=3 → 户外探险游
     if (outdoor + nature) >= 1 and days >= 3:
@@ -229,8 +492,7 @@ def generate_training_dataset(n_samples: int = 10000, noise_rate: float = 0.0) -
     return np.array(X), np.array(y), records
 
 
-# ── 引擎主类 ──────────────────────────────────────────────
-
+# 引擎主类
 class SupervisedEngine:
     """监督学习引擎 - VotingClassifier (GBT + RF + ExtraTrees)"""
 
@@ -240,7 +502,6 @@ class SupervisedEngine:
         self.dataset_size = 10000
         self.model_accuracy = 0.0
         self.feature_importances: dict = {}
-        self.fairness_metrics: dict = {}   # AOD / SPD 公平性指标
         self._load_or_train()
 
     def _load_or_train(self):
@@ -259,7 +520,6 @@ class SupervisedEngine:
                 self.feature_importances = saved["feature_importances"]
                 self.model_accuracy = saved["accuracy"]
                 self.dataset_size = saved.get("dataset_size", self.dataset_size)
-                self.fairness_metrics = saved.get("fairness_metrics", {})
                 logger.info(f"监督学习模型已加载 (训练集: {self.dataset_size} 条, "
                       f"准确率: {self.model_accuracy:.1%})")
                 return
@@ -326,14 +586,8 @@ class SupervisedEngine:
         fi_avg = (fi_gbt + fi_rf + fi_et) / 3.0
         self.feature_importances = dict(zip(FEATURE_NAMES, fi_avg))
 
-        # ── 计算公平性指标（AOD / SPD） ──────────────────────────
-        y_pred = self.model.predict(X_test)
-        self.fairness_metrics = self._compute_fairness(X_test, y_test, y_pred)
-
         logger.info(f"训练完成 - 准确率: {self.model_accuracy:.1%}")
         logger.info(f"Top-3 重要特征: {self._top_features(3)}")
-        logger.info(f"公平性 AOD(特殊需求): {self.fairness_metrics.get('aod_special', 0.0):.4f}  "
-                    f"AOD(出行类型): {self.fairness_metrics.get('aod_group_type', 0.0):.4f}")
 
         # 保存模型
         try:
@@ -344,113 +598,10 @@ class SupervisedEngine:
                     "feature_importances": self.feature_importances,
                     "accuracy": self.model_accuracy,
                     "dataset_size": self.dataset_size,
-                    "fairness_metrics": self.fairness_metrics,
                 }, f)
             logger.info(f"模型已保存: {MODEL_PATH}")
         except Exception as e:
             logger.warning(f"保存模型失败: {e}")
-
-    # ── 公平性指标计算 ────────────────────────────────────────
-
-    @staticmethod
-    def _tpr_fpr(mask: np.ndarray, y_true_bin: np.ndarray, y_pred_bin: np.ndarray):
-        """计算某子群体的 TPR 和 FPR"""
-        yt = y_true_bin[mask]
-        yp = y_pred_bin[mask]
-        tp = int(((yt == 1) & (yp == 1)).sum())
-        fn = int(((yt == 1) & (yp == 0)).sum())
-        fp = int(((yt == 0) & (yp == 1)).sum())
-        tn = int(((yt == 0) & (yp == 0)).sum())
-        tpr = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-        fpr = fp / (fp + tn) if (fp + tn) > 0 else 0.0
-        return round(tpr, 4), round(fpr, 4)
-
-    def _compute_fairness(
-        self,
-        X_test: np.ndarray,
-        y_test: np.ndarray,
-        y_pred: np.ndarray,
-    ) -> dict:
-        """
-        计算 Average Odds Difference（AOD）和 Statistical Parity Difference（SPD）。
-
-        参考：IBM AIF360 / Hardt et al. 2016
-        AOD = ½ × [(FPR_unpriv − FPR_priv) + (TPR_unpriv − TPR_priv)]
-        SPD = P(ŷ=1 | unpriv) − P(ŷ=1 | priv)
-        AOD=0 / SPD=0 → 完全公平；|AOD|<0.05 → 可接受
-
-        受保护属性1: has_special（特殊需求旅行者）
-            1 = 有特殊需求（携带儿童/老人/轮椅用户）= 弱势群体
-            0 = 无特殊需求 = 基准群体
-            理由：特殊需求旅行者通常在活动覆盖面、景点可达性上处于不利地位，
-                  属于旅行场景中有意义的可访问性保护属性，与用户主动申报的预算不同，
-                  老人/残障/婴儿等需求往往非用户主动选择。
-
-        受保护属性2: group_type（出行类型）
-            3(家庭) = 弱势群体，其他(单人/情侣/朋友) = 优势群体
-            理由：家庭出行（尤其携带未成年人）在推荐多样性上可能受限。
-
-        有利结果（favorable label）: 预测不为经济观光(label ≠ 0)，即获得有品质的旅行推荐。
-        注：budget 为用户主动申报的约束条件，不属于人口学保护属性，不纳入 AOD 计算。
-        """
-        out: dict = {}
-
-        # 有利输出二值化：非"经济观光"即为 favorable
-        y_test_bin = (y_test != 0).astype(int)
-        y_pred_bin = (y_pred != 0).astype(int)
-
-        # ── 受保护属性1: has_special（特殊需求 / 可访问性）────────────
-        special_col  = FEATURE_NAMES.index("has_special")
-        svals = X_test[:, special_col]
-        mask_special    = (svals == 1)   # 有特殊需求 = 弱势群体（unprivileged）
-        mask_no_special = (svals == 0)   # 无特殊需求 = 基准群体（privileged）
-
-        if mask_special.sum() > 0 and mask_no_special.sum() > 0:
-            tpr_sp,  fpr_sp  = self._tpr_fpr(mask_special,    y_test_bin, y_pred_bin)
-            tpr_nsp, fpr_nsp = self._tpr_fpr(mask_no_special, y_test_bin, y_pred_bin)
-            aod_s = 0.5 * ((fpr_sp - fpr_nsp) + (tpr_sp - tpr_nsp))
-            spd_s = (y_pred_bin[mask_special].mean() - y_pred_bin[mask_no_special].mean())
-            out["aod_special"]         = round(float(aod_s), 4)
-            out["spd_special"]         = round(float(spd_s), 4)
-            out["tpr_special"]         = tpr_sp
-            out["fpr_special"]         = fpr_sp
-            out["tpr_no_special"]      = tpr_nsp
-            out["fpr_no_special"]      = fpr_nsp
-            out["n_special"]           = int(mask_special.sum())
-            out["n_no_special"]        = int(mask_no_special.sum())
-
-        # ── 受保护属性2: group_type（出行类型：家庭 vs 非家庭）────────
-        group_col  = FEATURE_NAMES.index("group_type")
-        gvals = X_test[:, group_col]
-        mask_family    = (gvals == 3)
-        mask_nonfamily = (gvals != 3)
-
-        if mask_family.sum() > 0 and mask_nonfamily.sum() > 0:
-            tpr_fam, fpr_fam = self._tpr_fpr(mask_family,    y_test_bin, y_pred_bin)
-            tpr_nfm, fpr_nfm = self._tpr_fpr(mask_nonfamily, y_test_bin, y_pred_bin)
-            aod_g = 0.5 * ((fpr_fam - fpr_nfm) + (tpr_fam - tpr_nfm))
-            spd_g = (y_pred_bin[mask_family].mean() - y_pred_bin[mask_nonfamily].mean())
-            out["aod_group_type"]  = round(float(aod_g), 4)
-            out["spd_group_type"]  = round(float(spd_g), 4)
-            out["n_family"]        = int(mask_family.sum())
-            out["n_nonfamily"]     = int(mask_nonfamily.sum())
-
-        out["favorable_label"]   = "非经济观光类(label≠0)"
-        out["protected_attr_1"]  = "has_special（特殊需求旅行者）"
-        out["protected_attr_2"]  = "group_type（家庭 vs 非家庭）"
-        out["method"]            = "Average Odds Difference (Hardt et al. 2016)"
-        return out
-
-    @staticmethod
-    def _aod_level(aod: float) -> str:
-        """AOD 公平等级判断"""
-        a = abs(aod)
-        if a < 0.05:
-            return "公平（|AOD|<0.05）"
-        elif a < 0.10:
-            return "边界（0.05≤|AOD|<0.10）"
-        else:
-            return "偏差（|AOD|≥0.10，需关注）"
 
     def _extract_features(self, meta: dict) -> dict:
         """从用户元数据提取特征向量"""
@@ -467,13 +618,14 @@ class SupervisedEngine:
             "group_type": group_type_map.get(meta.get("group", "情侣"), 1),
             "has_special": 0 if meta.get("special", "无") == "无" else 1,
             "travel_mode": travel_mode_map.get(meta.get("travel_mode", "飞机"), 0),
-            "interest_culture": 1 if "文化" in interests else 0,
+            # 注意：前端标签"艺术"归并到文化维度；"户外运动"含"户外"前缀需用 any()
+            "interest_culture": 1 if ("文化" in interests or "艺术" in interests) else 0,
             "interest_nature": 1 if "自然" in interests else 0,
             "interest_food": 1 if "美食" in interests else 0,
             "interest_shopping": 1 if "购物" in interests else 0,
             "interest_history": 1 if "历史" in interests else 0,
             "interest_nightlife": 1 if "夜生活" in interests else 0,
-            "interest_outdoor": 1 if "户外" in interests else 0,
+            "interest_outdoor": 1 if any("户外" in i for i in interests) else 0,
             "city_paris": 1 if city == "巴黎" else 0,
             "city_tokyo": 1 if city == "东京" else 0,
             "city_newyork": 1 if city == "纽约" else 0,
@@ -493,6 +645,31 @@ class SupervisedEngine:
         # Fallback：用专家规则直接标注
         return _expert_label(features), 0.80
 
+    def _predict_proba(self, features: dict) -> List[Tuple[str, float]]:
+        """返回所有推荐类型的概率分布"""
+        if not self.model or not SKLEARN_AVAILABLE:
+            return []
+        X = np.array([[features[n] for n in FEATURE_NAMES]])
+        probas = self.model.predict_proba(X)[0]
+        result = []
+        for i, prob in enumerate(probas):
+            result.append((RECOMMENDATION_LABELS_ZH.get(i, "未知"), round(float(prob), 4)))
+        result.sort(key=lambda x: x[1], reverse=True)
+        return result
+
+    def _decision_path(self, features: dict) -> List[Tuple[str, float]]:
+        """返回决策路径：哪些特征推动了本次预测"""
+        # 使用特征重要性 + 实际特征值，估算每个特征的贡献度
+        contributions = []
+        for name in FEATURE_NAMES:
+            importance = self.feature_importances.get(name, 0)
+            value = features.get(name, 0)
+            # 仅考虑有值特征（非零）
+            if value != 0 and importance > 0:
+                contributions.append((FEATURE_NAMES_ZH.get(name, name), round(importance * 100, 1)))
+        contributions.sort(key=lambda x: x[1], reverse=True)
+        return contributions[:5]
+
     def _top_features(self, n: int = 3) -> List[Tuple[str, float]]:
         """返回最重要的 n 个特征（中文名+权重）"""
         sorted_f = sorted(
@@ -508,6 +685,11 @@ class SupervisedEngine:
         rec_name = RECOMMENDATION_TYPES.get(rec_type, "cultural_deep_dive")
         rec_name_zh = RECOMMENDATION_LABELS_ZH.get(rec_type, "文化深度游")
 
+        # 方案3：增强可解释性输出
+        proba_dist = self._predict_proba(features)
+        decision_path = self._decision_path(features)
+        is_uncertain = len(proba_dist) >= 2 and (proba_dist[0][1] - proba_dist[1][1] < 0.1)
+
         itinerary = self._build_itinerary(meta, rec_type)
 
         days = meta.get("days", 3)
@@ -517,10 +699,8 @@ class SupervisedEngine:
         total_budget = budget_per_day_val * days * max(1, num_people)
 
         city = meta.get("city", "")
-        known_cities = ["巴黎", "东京", "纽约", "伦敦", "罗马", "首尔", "迪拜"]
-        city_in_training = city in known_cities
 
-        return {
+        result = {
             "system": "supervised",
             "itinerary": itinerary,
             "output": itinerary,
@@ -535,62 +715,12 @@ class SupervisedEngine:
             "model_accuracy": round(self.model_accuracy, 4),
             "dataset_size": self.dataset_size,
             "metadata": meta,
-            "responsible_ai": {
-                # ── 透明度 / Transparency ────────────────────────────
-                "transparency": (
-                    f"模型置信度 {round(confidence*100)}%；Top-3 特征重要性已暴露，可审查决策依据。"
-                    f"决策路径：{RECOMMENDATION_LABELS_ZH.get(rec_type,'—')} "
-                    f"由 VotingClassifier 软投票（GBT+RF+ExtraTrees）产生。"
-                ),
-                # ── 准确率诚实说明 / Accuracy Honesty Note ───────────
-                "accuracy_note": (
-                    f"测试准确率 {self.model_accuracy:.1%}：数据集包含 15% 随机标签噪声（模拟真实用户偏好不确定性），"
-                    "训练集与测试集均使用同等噪声水平，准确率更接近真实场景性能。"
-                    "标签由专家规则程序生成，训练数据为合成数据，实际部署仍需真实用户反馈验证。"
-                ),
-                # ── 公平性 / Fairness (AOD) ──────────────────────────
-                # 受保护属性①：has_special（特殊需求旅行者：携带儿童/老人/轮椅用户）
-                # 受保护属性②：group_type（家庭出行 vs 其他类型）
-                # 注：budget 为用户主动申报的约束，不属于人口学保护属性，不纳入 AOD 计算
-                "fairness_aod_special":  self.fairness_metrics.get("aod_special", None),
-                "fairness_aod_group":    self.fairness_metrics.get("aod_group_type", None),
-                "fairness_spd_special":  self.fairness_metrics.get("spd_special", None),
-                "fairness_level_special": (
-                    self._aod_level(self.fairness_metrics["aod_special"])
-                    if "aod_special" in self.fairness_metrics else "未计算"
-                ),
-                "fairness_level_group": (
-                    self._aod_level(self.fairness_metrics["aod_group_type"])
-                    if "aod_group_type" in self.fairness_metrics else "未计算"
-                ),
-                "fairness_method": "Average Odds Difference (IBM AIF360 / Hardt et al. 2016)",
-                "fairness_note": (
-                    "AOD = ½×[(FPR_弱势−FPR_优势)+(TPR_弱势−TPR_优势)]。"
-                    "受保护属性①特殊需求（有儿童/老人/轮椅=弱势，无=优势），"
-                    "受保护属性②出行类型（家庭=弱势/非家庭=优势）。"
-                    "|AOD|<0.05 为公平，≥0.10 需介入偏差缓解。"
-                    "预算为用户主动申报的约束条件，不属于公平性保护属性，不纳入计算。"
-                ),
-                # ── 鲁棒性 / Robustness ──────────────────────────────
-                "data_bias": (
-                    "训练数据由程序规则生成（非真实用户行为），存在规则偏差；"
-                    "5% 随机标签噪声已添加增强鲁棒性；集成学习（VotingClassifier）降低单模型过拟合。"
-                ),
-                # ── 问责 / Accountability ───────────────────────────
-                "group_fairness": (
-                    "各出行群体（单人/情侣/朋友/家庭）训练集均等采样（各25%）；"
-                    "AOD①量化特殊需求旅行者（老人/儿童/轮椅）与普通旅行者的推荐机会平等性；"
-                    "AOD②量化家庭出行与其他群体的推荐覆盖差异。"
-                ),
-                "city_coverage_note": (
-                    f"城市'{city}'" +
-                    ("在训练分布内。" if city_in_training else "不在训练城市特征中，城市特征维度均为0，可能影响预测准确性。")
-                ),
-                "city_in_training_distribution": city_in_training,
-                "deterministic": False,
-                "model_version": self.model_type,
-            },
+            # 增强可解释性
+            "proba_distribution": proba_dist,
+            "decision_path": decision_path,
+            "is_uncertain": is_uncertain,
         }
+        return result
 
     def _build_itinerary(self, meta: dict, rec_type: int) -> str:
         """根据推荐类型生成每日行程，返回 Markdown 格式字符串"""
@@ -601,6 +731,12 @@ class SupervisedEngine:
         group = meta.get("group", "朋友")
         special = meta.get("special", "无")
         rec_name_zh = RECOMMENDATION_LABELS_ZH.get(rec_type, "文化深度游")
+        interests = meta.get("interests", [])
+
+        # 三层降级：CITY_TYPE_ACTIVITIES（5城精选）→ RULES 景点库（25城）→ 通用模板
+        city_activities = CITY_TYPE_ACTIVITIES.get(city, {}).get(rec_type, {})
+        if not city_activities:
+            city_activities = _rules_activities_for_city(city, rec_type)
 
         # 每种推荐类型的活动模板（每个 key 对应一个列表，按天轮换，避免重复）
         templates = {
@@ -844,11 +980,21 @@ class SupervisedEngine:
             ]
             mood = day_moods[(day - 1) % len(day_moods)]
 
-            # 按天轮换活动（mornings/afternoons/evenings/lunches 均为列表）
-            idx = (day - 1) % len(tmpl["mornings"])
-            morning_act, morning_detail = tmpl["mornings"][idx]
-            idx_a = (day - 1) % len(tmpl["afternoons"])
-            afternoon_act, afternoon_detail = tmpl["afternoons"][idx_a]
+            city_key = city_activities.get("mornings", [])
+            if city_key:
+                idx_c = (day - 1) % len(city_key)
+                morning_act, morning_detail = city_key[idx_c]
+            else:
+                idx = (day - 1) % len(tmpl["mornings"])
+                morning_act, morning_detail = tmpl["mornings"][idx]
+
+            city_key_a = city_activities.get("afternoons", [])
+            if city_key_a:
+                idx_ca = (day - 1) % len(city_key_a)
+                afternoon_act, afternoon_detail = city_key_a[idx_ca]
+            else:
+                idx_a = (day - 1) % len(tmpl["afternoons"])
+                afternoon_act, afternoon_detail = tmpl["afternoons"][idx_a]
             idx_e = (day - 1) % len(tmpl["evenings"])
             evening_act = tmpl["evenings"][idx_e]
             idx_l = (day - 1) % len(tmpl["lunches"])

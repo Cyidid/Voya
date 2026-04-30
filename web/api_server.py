@@ -21,11 +21,12 @@ except ImportError:
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.concurrency import iterate_in_threadpool
 from pydantic import BaseModel, Field
 import uvicorn
 
-# ── 日志 ────────────────────────────────────────────────────────
+# 日志
 _log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "logs")
 os.makedirs(_log_dir, exist_ok=True)
 logging.basicConfig(
@@ -38,7 +39,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ── 导入三大系统 ─────────────────────────────────────────────────
+# 导入三大系统
 from systems.rule_based.engine import generate as rule_based_generate
 from systems.supervised.inference import generate as supervised_generate
 
@@ -56,29 +57,17 @@ try:
 
     logger.info("Goal-Based: Tool Calling Agent 已加载")
 except Exception as e:
-    logger.warning(f"Tool Calling Agent 失败: {e}，回退到简化版")
-    try:
-        from systems.goal_based.agent_local import GoalBasedAgentLocal
+    logger.error(f"Goal-Based Agent 加载失败: {e}")
+    def goal_based_generate(test_case: dict, **kw) -> dict:
+        raise RuntimeError("Goal-Based Agent 不可用，请检查 OPENAI_API_KEY 配置")
 
-        def goal_based_generate(test_case: dict, **kw) -> dict:
-            agent = GoalBasedAgentLocal(**{k: v for k, v in kw.items()})
-            r = agent.generate_itinerary(test_case.get("input", ""), test_case.get("metadata", {}))
-            r.setdefault("output", r.get("itinerary", ""))
-            r.setdefault("processing_time", r.get("response_time", 0))
-            r.setdefault("token_estimate", len(r.get("output", "")) // 2)
-            r["metadata"] = test_case.get("metadata", {})
-            return r
-    except Exception:
-        def goal_based_generate(test_case: dict, **kw) -> dict:
-            raise RuntimeError("Goal-Based Agent 不可用，请检查 OPENAI_API_KEY 配置")
-
-# ── 导入票务引擎 ─────────────────────────────────────────────────
+# 导入票务引擎
 from systems.booking.booking_engine import (
     search_tickets, create_order, get_orders, get_order, cancel_order,
     DOMESTIC_CITIES, INTL_HUB,
 )
 
-# ── Tavily 联网搜索（票务兜底）──────────────────────────────────────
+#  Tavily 联网搜索（票务兜底）──────────────────────────────────────
 try:
     from systems.goal_based.tavily_client import TavilySearchClient as _TavilyClient
     _tavily = _TavilyClient()
@@ -121,7 +110,7 @@ async def _search_flights_online(origin: str, dest: str, date: str) -> list[dict
 # 票务支持的城市集合（国内 + 国际）
 KNOWN_CITIES: frozenset = frozenset(DOMESTIC_CITIES) | frozenset(INTL_HUB.keys())
 
-# ── 统计 ─────────────────────────────────────────────────────────
+# 统计
 _stats = {
     "total": 0, "success": 0, "failed": 0,
     "rule_based": 0, "supervised": 0, "goal_based": 0,
@@ -129,8 +118,7 @@ _stats = {
 }
 
 
-# ── 结构化错误响应助手 ────────────────────────────────────────────
-
+# 结构化错误响应助手
 def _api_error(status: int, code: str, user_msg: str, detail: str = "") -> HTTPException:
     """返回统一格式的结构化错误，避免裸 Python 异常泄露给前端。"""
     return HTTPException(
@@ -167,6 +155,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+#  静态文件（CSS/JS）─────────────────────────────────────
+_web_dir = os.path.dirname(os.path.abspath(__file__))
+_assets_dir = os.path.join(_web_dir, "assets")
+app.mount("/assets", StaticFiles(directory=_assets_dir), name="assets")
+
 
 @app.middleware("http")
 async def track_requests(request: Request, call_next):
@@ -183,8 +176,7 @@ async def track_requests(request: Request, call_next):
         raise
 
 
-# ── 格式化输出 ───────────────────────────────────────────────────
-
+# 格式化输出
 # 城市货币信息：(货币代码, 货币名称, 1货币=?人民币)
 _CITY_CURRENCY: dict[str, tuple[str, str, float]] = {
     "巴黎":     ("EUR", "欧元",        7.80),
@@ -285,10 +277,10 @@ def _format_output(result: dict, agent_type: str) -> str:
 
     lines: list[str] = []
 
-    # ── 标题 ──────────────────────────────────────────────────────
+    # 标题
     lines.append(f"# {city} · {days} 日{rec_zh}\n")
 
-    # ── 行程概览 ──────────────────────────────────────────────────
+    # 行程概览
     lines.append("## 行程概览\n")
     origin_str = f"从 **{origin}** 出发 · " if origin else ""
     special_str = f" · 特别需求：{special}" if special and special != "无" else ""
@@ -307,7 +299,7 @@ def _format_output(result: dict, agent_type: str) -> str:
 
     lines.append("---\n")
 
-    # ── 每日行程 ──────────────────────────────────────────────────
+    # 每日行程
     for day_key in sorted(itinerary.keys()):
         day    = itinerary[day_key]
         day_num = day_key.replace("day_", "")
@@ -367,26 +359,26 @@ def _format_output(result: dict, agent_type: str) -> str:
 
         lines.append("---\n")
 
-    # ── 住宿建议 ──────────────────────────────────────────────────
+    # 住宿建议
     lines.append("## 住宿建议\n")
     lines.append(
         f"推荐选择 **{_BUDGET_HOTEL.get(budget, '舒适型酒店')}**，"
         f"优先考虑靠近主要景点或市中心的位置，节省通勤时间，行程更从容。\n"
     )
 
-    # ── 交通建议 ──────────────────────────────────────────────────
+    # 交通建议
     if transport_tip:
         lines.append("## 交通建议\n")
         lines.append(f"{transport_tip}\n")
 
-    # ── 当地贴士 ──────────────────────────────────────────────────
+    # 当地贴士
     if city_tips:
         lines.append("## 当地贴士\n")
         for tip in city_tips:
             lines.append(f"- {tip}")
         lines.append("")
 
-    # ── 预算参考 ──────────────────────────────────────────────────
+    # 预算参考
     lines.append("## 预算参考\n")
     lines.append("| 费用项目 | 预估（人民币）|")
     lines.append("|---------|------------|")
@@ -398,7 +390,7 @@ def _format_output(result: dict, agent_type: str) -> str:
     lines.append("")
     lines.append(f"> 参考消费水平：{_BUDGET_DAILY.get(budget, '')}，实际费用因个人选择与当地物价而异。\n")
 
-    # ── 货币换算提示 ──────────────────────────────────────────────
+    # 货币换算提示
     cur = _CITY_CURRENCY.get(city)
     if cur:
         code, name, rate = cur
@@ -411,7 +403,7 @@ def _format_output(result: dict, agent_type: str) -> str:
             lines.append(f"（每日活动参考：约 {daily_local:,} {code} / 人·天）\n")
             lines.append(f"> 汇率随市场波动，实际以出行时银行/兑换网点为准，建议提前适量兑换或使用境外免手续费银行卡。\n")
 
-    # ── 系统说明 ──────────────────────────────────────────────────
+    # 系统说明
     if agent_type == "supervised":
         top = result.get("top_features", [])
         if top:
@@ -430,8 +422,7 @@ def _format_output(result: dict, agent_type: str) -> str:
     return "\n".join(lines)
 
 
-# ── 数据模型 ─────────────────────────────────────────────────────
-
+# 数据模型
 class TravelRequest(BaseModel):
     city: str
     days: int = Field(..., ge=1, le=14)
@@ -467,8 +458,7 @@ class BookingCreateRequest(BaseModel):
     id_number: Optional[str] = ""
 
 
-# ── 行程生成路由 ─────────────────────────────────────────────────
-
+# 行程生成路由
 @app.post("/api/generate")
 async def generate_itinerary(req: TravelRequest):
     """生成旅行行程（三种 AI 系统可选）"""
@@ -507,20 +497,21 @@ async def generate_itinerary(req: TravelRequest):
         formatted = _format_output(result, req.agent_type)
         meta = result.get("metadata", test_case["metadata"])
 
-        # ── 公共字段（所有 agent 均返回）───────────────────────────
+        #  公共字段（所有 agent 均返回）───────────────────────────
         resp: dict = {
             "itinerary": formatted,
             "agent_type": req.agent_type,
             "processing_time": result.get("processing_time", 0),
             "token_estimate": result.get("token_estimate", len(formatted) // 2),
             "metadata": meta,
-            "responsible_ai": result.get("responsible_ai", {}),
         }
 
-        # ── Agent 专属字段（按类型精简，减少无关字段传输）──────────
+        #  Agent 专属字段（按类型精简，减少无关字段传输）──────────
         if req.agent_type == "rule_based":
             resp["transport_tip"] = result.get("transport_tip", "")
             resp["city_tips"] = result.get("city_tips", [])
+            resp["coverage_gap"] = result.get("coverage_gap", False)
+            resp["city_used"] = result.get("city_used", "")
 
         elif req.agent_type == "supervised":
             resp["recommendation_type_zh"] = result.get("recommendation_type_zh", "")
@@ -547,12 +538,17 @@ async def generate_itinerary(req: TravelRequest):
 @app.post("/api/generate/stream")
 async def generate_stream(req: TravelRequest):
     """
-    SSE 流式接口（goal_based 专用）。
+    SSE 流式接口（三种系统均支持）。
     每行格式：data: <JSON>\\n\\n
-      - 文本块：{"chunk": "..."}
-      - 完成：  {"done": true, "processing_time": X, "tool_rounds": 0, "cache_hit": false}
-      - 错误：  {"error": "..."}
-    非 goal_based 系统直接返回一个 done 事件（秒返）。
+      - 文本块：      {"chunk": "..."}
+      - 工具日志字符：{"tool_char": "..."}
+      - 完成(goal):  {"done": true, "processing_time": X, "tool_rounds": N, "cache_hit": false, "agent_steps": [...]}
+      - 完成(rule):  {"done": true, "itinerary": "...", "processing_time": X, "tool_rounds": 0, "cache_hit": false, "result_meta": {...}}
+      - 完成(sup):   {"done": true, "processing_time": X, "tool_rounds": 0, "cache_hit": false, "result_meta": {...}}
+      - 错误：        {"error": "..."}
+    rule_based 毫秒响应，直接一次性返回 done（含 itinerary）；
+    supervised 逐行流式（每3行一chunk，10ms延迟）；
+    goal_based 真正流式，同时后台并行执行工具调用。
     """
     num_people = 2 if req.group in ("情侣", "夫妻") else (req.num_people or 2)
     origin_prefix = f"从{req.origin}出发，" if req.origin else ""
@@ -587,7 +583,7 @@ async def generate_stream(req: TravelRequest):
     }
     test_case = {"id": f"WEB_{req.city}", "input": user_input, "metadata": meta}
 
-    # ── 非流式系统 ────────────────────────────────────────────────
+    # 非流式系统
     if req.agent_type != "goal_based":
         try:
             if req.agent_type == "rule_based":
@@ -604,7 +600,13 @@ async def generate_stream(req: TravelRequest):
                 "transport_tip_en": result.get("transport_tip_en", result.get("transport_tip", "")),
                 "city_tips_en": result.get("city_tips_en", result.get("city_tips", [])),
                 "total_budget_estimate": result.get("total_budget_estimate"),
-                "responsible_ai": result.get("responsible_ai", {}),
+                "weather_note": result.get("weather_note", ""),
+                "proba_distribution": result.get("proba_distribution", []),
+                "is_uncertain": result.get("is_uncertain", False),
+                "model_accuracy": result.get("model_accuracy", 0),
+                "dataset_size": result.get("dataset_size", 0),
+                "coverage_gap": result.get("coverage_gap", False),
+                "city_used": result.get("city_used", ""),
             }
         except Exception as e:
             async def err_shot():
@@ -658,25 +660,134 @@ async def generate_stream(req: TravelRequest):
             headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
         )
 
-    # ── goal_based：真正流式 ──────────────────────────────────────
+    # goal_based：并行执行 — 立即流式输出 + 后台调用工具
     try:
         from systems.goal_based.agent_agentic import TravelPlanningAgent
+        from systems.goal_based.agent_agentic import AGENT_SYSTEM_PROMPT
+        from systems.goal_based.agent_agentic import _execute_search_web, _execute_query_knowledge
+        import datetime as _dt_mod
+        import threading, queue
         agent = TravelPlanningAgent(enable_knowledge=True, enable_web_search=True)
     except Exception as e:
+        _err_msg = str(e)
         async def err_stream():
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            yield f"data: {json.dumps({'error': _err_msg})}\n\n"
         return StreamingResponse(err_stream(), media_type="text/event-stream")
 
     def sync_event_gen():
-        """同步生成器，将 agent.stream_itinerary() 输出转为 SSE 行"""
+        """同步生成器：立即开始流式输出，工具在后台并行执行"""
         try:
-            for item in agent.stream_itinerary(user_input, meta):
-                if isinstance(item, dict) and item.get("__meta__"):
-                    # 结束元数据（含 agent_steps，供前端侧边栏展示）
-                    yield f"data: {json.dumps({'done': True, 'processing_time': item['processing_time'], 'tool_rounds': item['tool_rounds'], 'cache_hit': item['cache_hit'], 'agent_steps': item.get('agent_steps', [])}, ensure_ascii=False)}\n\n"
-                else:
-                    # 文本 chunk
-                    yield f"data: {json.dumps({'chunk': item}, ensure_ascii=False)}\n\n"
+            tool_steps = []
+            full_text = ""
+            total_start = time.time()
+            _city = meta.get("city", "")
+
+            # 线程安全队列：后台工具结果推送进来
+            tool_queue = queue.Queue()
+
+            def _query_kb():
+                if not agent.knowledge_client or not _city:
+                    return
+                try:
+                    t0 = time.time()
+                    res = _execute_query_knowledge(
+                        {"city": _city, "query": f"{_city} 景点 餐饮 住宿 交通 实用贴士"},
+                        agent.knowledge_client,
+                    )
+                    elapsed = round(time.time() - t0, 2)
+                    if res and "不可用" not in res:
+                        tool_queue.put({
+                            "tool": "query_knowledge_base",
+                            "args": {"city": _city, "query": "景点 餐饮 住宿 交通 实用贴士"},
+                            "result_preview": res[:100],
+                            "time_s": elapsed,
+                        })
+                except Exception as e:
+                    logger.warning(f"后台知识库查询失败: {e}")
+
+            def _search_web():
+                if not agent.search_client or not _city:
+                    return
+                try:
+                    t0 = time.time()
+                    _cur_year = _dt_mod.datetime.now().year
+                    res = agent.search_client.search(
+                        f"{_city} 旅行攻略 {meta.get('days', 3)}天 景点 餐厅 {_cur_year}",
+                        max_results=4
+                    )
+                    elapsed = round(time.time() - t0, 2)
+                    if res:
+                        _web_query = f"{_city} 旅行攻略 {meta.get('days', 3)}天 景点 餐厅"
+                        tool_queue.put({
+                            "tool": "search_web",
+                            "args": {"query": _web_query, "topic": "general"},
+                            "result_preview": (res.get("answer", "") or "")[:100],
+                            "time_s": elapsed,
+                        })
+                except Exception as e:
+                    logger.warning(f"后台网络搜索失败: {e}")
+
+            # 启动后台线程
+            kb_thread = threading.Thread(target=_query_kb, daemon=True)
+            web_thread = threading.Thread(target=_search_web, daemon=True)
+            kb_thread.start()
+            web_thread.start()
+
+            # 主线程：立即开始流式输出
+            messages = [
+                {"role": "system", "content": AGENT_SYSTEM_PROMPT},
+                {"role": "user", "content": user_input},
+            ]
+
+            # 先发送工具调用开始提示
+            yield f"data: {json.dumps({'tool_start': True, 'city': _city}, ensure_ascii=False)}\n\n"
+
+            stream = agent.client.chat.completions.create(
+                model=agent.model_name,
+                messages=messages,
+                temperature=agent.temperature,
+                max_tokens=agent.max_tokens,
+                extra_body={"enable_thinking": False},
+                stream=True,
+            )
+
+            # 流式输出 + 同时检查工具队列
+            for chunk in stream:
+                delta = chunk.choices[0].delta.content or ""
+                if delta:
+                    full_text += delta
+                    yield f"data: {json.dumps({'chunk': delta}, ensure_ascii=False)}\n\n"
+
+                # 检查后台工具结果，逐字符注入到侧边栏
+                while not tool_queue.empty():
+                    step = tool_queue.get_nowait()
+                    tool_steps.append(step)
+                    # 逐字符展示工具结果（中文名称，无图标）
+                    cn_name = '知识库查询' if step['tool'] == 'query_knowledge_base' else '联网搜索'
+                    readable = f"{cn_name}: {step['args'].get('city', '') or step['args'].get('query', '')}\n"
+                    for ch in readable:
+                        yield f"data: {json.dumps({'tool_char': ch}, ensure_ascii=False)}\n\n"
+
+            # 等待剩余工具完成（最多 10 秒）
+            kb_thread.join(timeout=10)
+            web_thread.join(timeout=10)
+            while not tool_queue.empty():
+                step = tool_queue.get_nowait()
+                tool_steps.append(step)
+                readable = f"{'📚' if step['tool'] == 'query_knowledge_base' else '🔍'} {step['tool']}: {step['args'].get('city', '') or step['args'].get('query', '')}\n"
+                for ch in readable:
+                    yield f"data: {json.dumps({'tool_char': ch}, ensure_ascii=False)}\n\n"
+
+            processing_time = round(time.time() - total_start, 2)
+            logger.info(f"智能体完成 (耗时: {processing_time}s, 后台工具: {len(tool_steps)}项)")
+
+            yield f"data: {json.dumps({
+                'done': True,
+                'processing_time': processing_time,
+                'tool_rounds': len(tool_steps),
+                'cache_hit': False,
+                'agent_steps': tool_steps,
+            }, ensure_ascii=False)}\n\n"
         except Exception as e:
             logger.error(f"stream error: {e}")
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
@@ -696,7 +807,7 @@ async def chat(message: ChatMessage):
 
     content = message.content
 
-    # ── 解析关键参数，同时记录置信度 ────────────────────────────
+    # 解析关键参数，同时记录置信度
     city_m = re.search(r"去(.{2,6}?)(?:玩|旅游|游玩|度假)", content)
     city_recognized = city_m is not None
     city = city_m.group(1).replace("一下", "").replace("一趟", "").strip() if city_m else "巴黎"
@@ -720,8 +831,15 @@ async def chat(message: ChatMessage):
                  "家庭|家人|小孩|儿童": "家庭", "独自|单人|一个人": "单人"}
     group = next((v for pat, v in group_map.items() if re.search(pat, content)), "朋友")
 
+    _CN_NUMS = {'一':1,'二':2,'两':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10}
     np_m = re.search(r"(\d+)\s*(?:人|位)", content)
-    num_people = 2 if group in ("情侣", "夫妻") else (int(np_m.group(1)) if np_m else 2)
+    if np_m:
+        num_people = int(np_m.group(1))
+    else:
+        cn_m = re.search(r"([一二两三四五六七八九十]+)\s*[个]?\s*人", content)
+        num_people = _CN_NUMS.get(cn_m.group(1), 2) if cn_m else 2
+    if group in ("情侣", "夫妻"):
+        num_people = 2
 
     test_case = {
         "id": f"CHAT_{city}",
@@ -769,13 +887,12 @@ async def chat(message: ChatMessage):
         )
 
 
-# ── 票务路由 ─────────────────────────────────────────────────────
-
+# 票务路由
 @app.post("/api/booking/search")
 async def booking_search(req: BookingSearchRequest):
     """搜索机票或火车票（所有用户相同权限，无区别对待）"""
 
-    # ── 城市名校验：防止无效输入静默返回空列表 ───────────────────
+    # 城市名校验：防止无效输入静默返回空列表
     if req.origin not in KNOWN_CITIES:
         raise _api_error(
             400, "INVALID_CITY",
@@ -873,8 +990,7 @@ async def booking_cancel(order_id: str):
     return order
 
 
-# ── 通用路由 ─────────────────────────────────────────────────────
-
+# 通用路由
 @app.get("/api/health")
 async def health():
     return {
@@ -895,8 +1011,8 @@ async def agents():
     return {
         "agents": [
             {"id": "goal_based", "name": "联网规划", "desc": "LLM + 实时搜索，全球目的地，个性化程度最高", "time": "30–60s"},
-            {"id": "supervised", "name": "智能推荐", "desc": "集成分类器，95.4% 准确率，<1ms 响应", "time": "<1ms"},
-            {"id": "rule_based", "name": "经典规划", "desc": "专家规则库，18城市，完全确定性，完全可解释", "time": "<0.1ms"},
+            {"id": "supervised", "name": "智能推荐", "desc": "集成分类器，86.8% 准确率，<1ms 响应", "time": "<1ms"},
+            {"id": "rule_based", "name": "经典规划", "desc": "专家规则库，25城市，完全确定性，完全可解释", "time": "<0.1ms"},
         ],
         "default": "goal_based",
     }
@@ -916,9 +1032,19 @@ async def preview():
         return fh.read()
 
 
+@app.get("/ppt", response_class=HTMLResponse)
+async def ppt_bg():
+    f = os.path.join(os.path.dirname(__file__), "ppt_bg.html")
+    if not os.path.exists(f):
+        raise _api_error(404, "PPT_NOT_FOUND", "PPT背景页未找到")
+    with open(f, encoding="utf-8") as fh:
+        return fh.read()
+
+
 @app.get("/")
 async def root():
-    return {"name": "云游 API", "version": "3.1.0", "ui": "/preview", "docs": "/docs"}
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/preview")
 
 
 if __name__ == "__main__":

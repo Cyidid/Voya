@@ -7,9 +7,9 @@ GOAL_BASED_CONFIG = {
     "use_real_llm": True, # 改为True，使用真实大模型
 
     # LLM模型配置
-    "model_name": os.getenv("MODEL_NAME", "qwen-plus"), # 从 .env 读取，默认通义千问
+    "model_name": os.getenv("MODEL_NAME", "qwen3.6-plus"), # 从 .env 读取，默认通义千问
     # 可选的通义千问模型:
-    # - qwen-plus (均衡，推荐)
+    # - qwen3.6-plus (均衡，推荐)
     # - qwen-max (旗舰级，效果最好)
     # - qwen-turbo (轻量快速)
 
@@ -18,7 +18,7 @@ GOAL_BASED_CONFIG = {
 
     # 生成参数（已优化）
     "temperature": 0.75, # 输出随机性 (0-2)，略高以增加内容丰富度
-    "max_tokens": 8192,  # 无截断限制，优先输出完整详细内容
+    "max_tokens": 8192,  # 无截断限制，优先输出完整详细
 
     # 是否在API失败时使用模拟输出
     "fallback_to_mock": True # 保留作为备用，确保稳定性
@@ -47,12 +47,14 @@ RULE_BASED_CONFIG = {
     # 规则库入口
     "rules_file": "systems/rule_based/engine.py",
 
-    # 支持的城市（18个热门目的地）
+    # 支持的城市（25个热门目的地）
     "supported_cities": [
         "巴黎", "东京", "纽约", "伦敦", "罗马",
         "悉尼", "巴塞罗那", "曼谷", "新加坡", "首尔",
         "迪拜", "阿姆斯特丹", "维也纳", "布拉格",
         "普吉岛", "马尔代夫", "伊斯坦布尔", "里斯本",
+        "广州", "大阪", "京都", "巴厘岛",
+        "开罗", "哥本哈根", "苏黎世",
     ],
 
     # 是否严格模式（不支持的请求返回错误）

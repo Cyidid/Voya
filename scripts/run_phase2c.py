@@ -67,17 +67,12 @@ def run(count: int = 20):
     print(f"每条用例跑 {RUNS_PER_CASE} 次（禁用缓存，观察非确定性）")
     print("=" * 60)
 
-    # 确定使用哪个 Agent
-    use_local = os.getenv("USE_LOCAL_AGENT", "false").lower() == "true"
-    if use_local:
-        try:
-            from systems.goal_based.agent_local import GoalBasedAgentLocal
-            print("✅ 使用本地 Agent（OpenAI SDK + 豆包）")
-        except ImportError as e:
-            print(f"❌ 无法导入本地 Agent: {e}")
-            sys.exit(1)
-    else:
-        print("ℹ️  USE_LOCAL_AGENT 未设置，请在 .env 中设置 USE_LOCAL_AGENT=true")
+    # 使用 agent_agentic（主智能体）
+    try:
+        from systems.goal_based.agent_agentic import TravelPlanningAgent
+        print("✅ 使用 Goal-Based Agent（qwen3.6-plus + 工具链）")
+    except ImportError as e:
+        print(f"❌ 无法导入 Goal-Based Agent: {e}")
         sys.exit(1)
 
     with open(TEST_CASES_FILE, "r", encoding="utf-8") as f:
@@ -87,7 +82,7 @@ def run(count: int = 20):
     print(f"\n📋 已选 {len(selected)} 条代表性用例（覆盖不同城市/预算/类型）\n")
 
     # 初始化 Agent（一次，避免重复初始化）
-    agent = GoalBasedAgentLocal()
+    agent = TravelPlanningAgent(enable_knowledge=True, enable_web_search=True)
 
     json_records = []
     csv_rows = []
