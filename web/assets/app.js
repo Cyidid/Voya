@@ -2194,6 +2194,7 @@ const I18N = {
     ls3: '生成个性化行程...',
     // action buttons
     btn_ticket: '搜索票务', btn_copy: '复制',
+    btn_share: '分享', btn_print: '打印/PDF', btn_save: '保存',
     // chat
     chat_log: '对话记录',
     // system cards
@@ -2291,6 +2292,7 @@ const I18N = {
     ls3: 'Generating personalized itinerary...',
     // action buttons
     btn_ticket: 'Search Tickets', btn_copy: 'Copy',
+    btn_share: 'Share', btn_print: 'Print/PDF', btn_save: 'Save',
     // chat
     chat_log: 'Chat History',
     // system cards
