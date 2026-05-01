@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voya · AI Travel Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>window.marked = window.marked || { parse: (t) => `<pre>${t.replace(/</g,'&lt;')}</pre>` };</script>
+<link rel="stylesheet" href="assets/style.css?v=6">
+</head>
+<body>
+<div class="toast" id="toast"></div>
+
+<!-- ── NAV ─────────────────────────────────────────── -->
+<nav class="nav">
+  <div class="nav-inner">
+    <a class="logo" href="#">
+      <div class="logo-mark">
+        <svg viewBox="0 0 20 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M15 8a4 4 0 00-3.16-3.9A3.5 3.5 0 005.07 6.5 3 3 0 003 9.5 3 3 0 006 12.5h9a3 3 0 000-6z" fill="#fff"/>
+          <path d="M6 16c1.3-1.1 3-1.1 4.3 0s3 1.1 4.3 0" stroke="#fff" stroke-width="1.3" stroke-linecap="round" opacity=".65"/>
+        </svg>
+      </div>
+      <div>
+        <div class="logo-text">云游</div>
+        <div class="logo-en">VOYA</div>
+      </div>
+    </a>
+    <div class="nav-pills">
+      <button class="nav-pill" data-agent="rule_based" data-i18n="nav_rule">经典规划</button>
+      <button class="nav-pill" data-agent="supervised" data-i18n="nav_ml">偏好匹配</button>
+      <button class="nav-pill active" data-agent="goal_based" data-i18n="nav_goal">实时规划 <span class="nav-badge">AI</span></button>
+    </div>
+    <div class="nav-right">
+      <div class="nav-status">
+        <div class="status-dot" id="statusDot"></div>
+        <span class="status-txt" id="statusText" data-i18n="status_connecting">连接中</span>
+      </div>
+      <button class="nav-btn" id="langBtn" onclick="toggleLang()" title="切换语言 / Switch Language">中 / EN</button>
+    </div>
+  </div>
+</nav>
+
+<!-- ── HERO ─────────────────────────────────────────── -->
+<section class="hero">
+  <div class="hero-overlay"></div>
+  <div class="hero-inner">
+    <div class="hero-label"><span class="hero-dot"></span><span data-i18n="hero_label">AI 驱动 · 全球目的地覆盖</span></div>
+    <div class="hero-title" data-i18n-html="hero_title">探索世界<br><em>让 AI 为你规划</em></div>
+    <div class="hero-sub" data-i18n="hero_sub">世界很大，出发就是答案</div>
+
+    <!-- 搜索卡 -->
+    <div class="search-card">
+      <div class="load-bar" id="loadBar"></div>
+      <div class="sc-tabs" id="scTabs">
+        <button class="sc-tab" data-agent="rule_based" data-i18n-sctab="sctab_rule">
+          <!-- compass -->
+          <svg viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="5.8" stroke="currentColor" stroke-width="1.3"/>
+            <path d="M8 3.2v1.1M8 11.7v1.1M3.2 8h1.1M11.7 8h1.1" stroke="currentColor" stroke-width=".9" stroke-linecap="round" opacity=".4"/>
+            <path d="M8 8L6.6 5l-.5 3z" fill="currentColor"/>
+            <path d="M8 8l1.4 3 .5-3z" fill="currentColor" opacity=".28"/>
+            <circle cx="8" cy="8" r="1" stroke="currentColor" stroke-width=".9"/>
+          </svg>
+          <span class="sc-tab-text">经典规划</span>
+        </button>
+        <button class="sc-tab" data-agent="supervised" data-i18n-sctab="sctab_ml">
+          <!-- neural nodes -->
+          <svg viewBox="0 0 16 16" fill="none">
+            <circle cx="2.5" cy="8" r="1.8" stroke="currentColor" stroke-width="1.2"/>
+            <circle cx="13.5" cy="3.5" r="1.8" stroke="currentColor" stroke-width="1.2"/>
+            <circle cx="13.5" cy="12.5" r="1.8" stroke="currentColor" stroke-width="1.2"/>
+            <line x1="4.2" y1="7.2" x2="11.8" y2="4.3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+            <line x1="4.2" y1="8.8" x2="11.8" y2="11.7" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+            <circle cx="8" cy="5.7" r="1.1" fill="currentColor" opacity=".35"/>
+            <circle cx="8" cy="10.3" r="1.1" fill="currentColor" opacity=".35"/>
+          </svg>
+          <span class="sc-tab-text">偏好匹配</span>
+        </button>
+        <button class="sc-tab active" data-agent="goal_based" data-i18n-sctab="sctab_goal">
+          <!-- globe -->
+          <svg viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.3"/>
+            <path d="M8 2.5c-1.6 1.5-2.5 3.3-2.5 5.5s.9 4 2.5 5.5M8 2.5c1.6 1.5 2.5 3.3 2.5 5.5s-.9 4-2.5 5.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+            <path d="M2.5 8h11" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+            <path d="M3 5.8h10M3 10.2h10" stroke="currentColor" stroke-width=".9" stroke-linecap="round" opacity=".35"/>
+          </svg>
+          <span class="sc-tab-text">实时规划</span> <span class="tag">AI</span>
+        </button>
+      </div>
+      <div class="sc-body">
+        <!-- 解析回填提示 -->
+        <div class="parse-banner" id="parseBanner">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#FFA869" stroke-width="1.4"/><path d="M7 4v3.5l2 1.5" stroke="#FFA869" stroke-width="1.4" stroke-linecap="round"/></svg>
+          <span id="parseBannerText">已从描述中识别并回填参数，可直接调整后开始规划</span>
+          <button onclick="document.getElementById('parseBanner').classList.remove('on')">✕</button>
+        </div>
+        <!-- 出发地 → 目的地 -->
+        <div class="route-row">
+          <div class="city-field">
+            <div class="city-label" data-i18n="label_origin">出发地</div>
+            <input class="city-input" id="originInput" placeholder="上海" data-i18n-placeholder="ph_origin" maxlength="20" autocomplete="off" onfocus="openOriginPicker()" oninput="onCityInput('origin',this)" onblur="onCityBlur('origin')" onkeydown="onCityKeydown('origin',event)">
+            <div class="city-hint" data-i18n="hint_origin">点击选择出发城市</div>
+          </div>
+          <div class="swap-wrap">
+            <button class="swap-btn" onclick="swapCities()" title="交换出发地和目的地">⇄</button>
+          </div>
+          <div class="city-field">
+            <div class="city-label" data-i18n="label_dest">目的地</div>
+            <input class="city-input" id="destInput" placeholder="巴黎、迪拜、首尔..." data-i18n-placeholder="ph_dest" maxlength="20" autocomplete="off" onfocus="openDestPicker()" oninput="onCityInput('dest',this)" onblur="onCityBlur('dest')" onkeydown="onCityKeydown('dest',event)">
+            <div class="city-hint" data-i18n="hint_dest">点击选择或直接输入城市</div>
+          </div>
+        </div>
+
+        <!-- 出发地选择器 -->
+        <div class="city-picker" id="originPicker">
+          <div class="cp-label" data-i18n="cp_all_origin">全部出发城市</div>
+          <div class="cp-grid" id="originPickerGrid"></div>
+          <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.07)">
+            <div class="cp-label" style="margin-bottom:5px" data-i18n="cp_hot_origin">热门出发地</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px">
+              <button class="hot-btn" style="font-size:10.5px;padding:3px 10px" data-city="上海" onmousedown="pickOriginCity('上海')">上海</button>
+              <button class="hot-btn" style="font-size:10.5px;padding:3px 10px" data-city="北京" onmousedown="pickOriginCity('北京')">北京</button>
+              <button class="hot-btn" style="font-size:10.5px;padding:3px 10px" data-city="广州" onmousedown="pickOriginCity('广州')">广州</button>
+              <button class="hot-btn" style="font-size:10.5px;padding:3px 10px" data-city="深圳" onmousedown="pickOriginCity('深圳')">深圳</button>
+              <button class="hot-btn" style="font-size:10.5px;padding:3px 10px" data-city="成都" onmousedown="pickOriginCity('成都')">成都</button>
+              <button class="hot-btn" style="font-size:10.5px;padding:3px 10px" data-city="杭州" onmousedown="pickOriginCity('杭州')">杭州</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 目的地选择器（展开在 route-row 正下方）-->
+        <div class="city-picker" id="destPicker">
+          <div class="cp-label" data-i18n="cp_all_dest">全部目的地</div>
+          <div class="cp-grid" id="destPickerGrid"></div>
+          <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.07)">
+            <div class="cp-label" style="margin-bottom:5px" data-i18n="cp_hot_dest">热门推荐</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px">
+              <button class="hot-btn" style="font-size:10.5px;padding:3px 10px" data-city="东京" onmousedown="pickDestCity('东京')">东京</button>
+              <button class="hot-btn" style="font-size:10.5px;padding:3px 10px" data-city="首尔" onmousedown="pickDestCity('首尔')">首尔</button>
+              <button class="hot-btn" style="font-size:10.5px;padding:3px 10px" data-city="新加坡" onmousedown="pickDestCity('新加坡')">新加坡</button>
+              <button class="hot-btn" style="font-size:10.5px;padding:3px 10px" data-city="曼谷" onmousedown="pickDestCity('曼谷')">曼谷</button>
+              <button class="hot-btn" style="font-size:10.5px;padding:3px 10px" data-city="迪拜" onmousedown="pickDestCity('迪拜')">迪拜</button>
+              <button class="hot-btn" style="font-size:10.5px;padding:3px 10px" data-city="悉尼" onmousedown="pickDestCity('悉尼')">悉尼</button>
+              <button class="hot-btn" style="font-size:10.5px;padding:3px 10px" data-city="巴黎" onmousedown="pickDestCity('巴黎')">巴黎</button>
+              <button class="hot-btn" style="font-size:10.5px;padding:3px 10px" data-city="纽约" onmousedown="pickDestCity('纽约')">纽约</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 参数 第一行：天数 / 人数 / 出发日期 -->
+        <div class="params-grid" style="margin-bottom:10px">
+          <div class="pf">
+            <label data-i18n="label_days">天数</label>
+            <select id="daysInput" data-i18n-select="select_days">
+              <option value="1">1 天</option>
+              <option value="2">2 天</option>
+              <option value="3" selected>3 天</option>
+              <option value="4">4 天</option>
+              <option value="5">5 天</option>
+              <option value="7">7 天</option>
+              <option value="10">10 天</option>
+              <option value="14">14 天</option>
+            </select>
+          </div>
+          <div class="pf" id="numPeoplePf">
+            <label data-i18n="label_people">人数</label>
+            <select id="numPeopleInput" data-i18n-select="select_people">
+              <option value="1" selected>1 人</option>
+              <option value="2">2 人</option>
+              <option value="3">3 人</option>
+              <option value="4">4 人</option>
+              <option value="5">5 人</option>
+              <option value="6">6 人</option>
+              <option value="8">7~8 人</option>
+              <option value="10">9+ 人</option>
+            </select>
+          </div>
+          <div class="pf">
+            <label data-i18n="label_date">出发日期</label>
+            <input type="date" id="startDateInput">
+          </div>
+          <!-- 第二行：出行类型 / 出行方式 / 预算档次 -->
+          <div class="pf">
+            <label data-i18n="label_group">出行类型</label>
+            <select id="groupInput" onchange="handleGroupChange()" data-i18n-select="select_group">
+              <option value="单人" selected>独旅</option>
+              <option value="情侣">情侣</option>
+              <option value="夫妻">夫妻</option>
+              <option value="朋友">朋友</option>
+              <option value="家庭">家庭</option>
+            </select>
+          </div>
+          <div class="pf">
+            <label data-i18n="label_mode">出行方式</label>
+            <select id="travelModeInput" data-i18n-select="select_transport">
+              <option value="飞机">飞机</option>
+              <option value="高铁">高铁</option>
+              <option value="火车">火车</option>
+              <option value="自驾">自驾</option>
+              <option value="游轮">游轮</option>
+            </select>
+          </div>
+          <div class="pf">
+            <label data-i18n="label_budget">预算档次</label>
+            <select id="budgetInput" data-i18n-select="select_budget">
+              <option value="低">经济型</option>
+              <option value="中" selected>舒适型</option>
+              <option value="高">奢华型</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 参数 第二行 -->
+        <div class="params-row2">
+          <div class="pf2">
+            <label data-i18n="label_special">特殊需求</label>
+            <select id="specialInput" data-i18n-select="select_special">
+              <option value="无">无</option>
+              <option value="有儿童">有儿童</option>
+              <option value="有老人">有老人</option>
+              <option value="轮椅友好">无障碍</option>
+            </select>
+          </div>
+          <button class="search-btn" id="searchBtn" onclick="doSearch()">
+            <svg viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4.5" stroke="#fff" stroke-width="1.5"/><path d="M10 10l3 3" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <span data-i18n="btn_plan">开始规划</span>
+          </button>
+        </div>
+
+        <!-- 兴趣偏好 -->
+        <div class="interest-row">
+          <span class="ir-label" data-i18n="label_pref">偏好</span>
+          <button class="itag on" data-i="文化" data-i18n="tag_culture">文化</button>
+          <button class="itag on" data-i="美食" data-i18n="tag_food">美食</button>
+          <button class="itag" data-i="购物" data-i18n="tag_shopping">购物</button>
+          <button class="itag" data-i="自然" data-i18n="tag_nature">自然</button>
+          <button class="itag" data-i="历史" data-i18n="tag_history">历史</button>
+          <button class="itag" data-i="艺术" data-i18n="tag_art">艺术</button>
+          <button class="itag" data-i="夜生活" data-i18n="tag_nightlife">夜生活</button>
+          <button class="itag" data-i="户外运动" data-i18n="tag_outdoor">户外运动</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 历史记录 strip -->
+    <div class="profile-strip" id="profileStrip" style="display:none"></div>
+
+    <!-- 热门快速入口 -->
+    <div class="hot-row">
+      <span class="hl" data-i18n="hot_label">热门：</span>
+      <button class="hot-btn" data-city="东京" onclick="quickDest('东京')">东京</button>
+      <button class="hot-btn" data-city="首尔" onclick="quickDest('首尔')">首尔</button>
+      <button class="hot-btn" data-city="新加坡" onclick="quickDest('新加坡')">新加坡</button>
+      <button class="hot-btn" data-city="曼谷" onclick="quickDest('曼谷')">曼谷</button>
+      <button class="hot-btn" data-city="巴厘岛" onclick="quickDest('巴厘岛')">巴厘岛</button>
+      <button class="hot-btn" data-city="迪拜" onclick="quickDest('迪拜')">迪拜</button>
+      <button class="hot-btn" data-city="悉尼" onclick="quickDest('悉尼')">悉尼</button>
+      <button class="hot-btn" data-city="巴黎" onclick="quickDest('巴黎')">巴黎</button>
+      <button class="hot-btn" data-city="伦敦" onclick="quickDest('伦敦')">伦敦</button>
+      <button class="hot-btn" data-city="纽约" onclick="quickDest('纽约')">纽约</button>
+    </div>
+  </div>
+</section>
+
+<!-- ── MAIN ──────────────────────────────────────── -->
+<div class="main">
+  <!-- Loading -->
+  <div class="load-msg" id="loadMsg">
+    <div class="spin"></div>
+    <div class="lsteps">
+      <div class="lstep vis" id="ls1" data-i18n="ls1">正在分析您的旅行需求...</div>
+      <div class="lstep" id="ls2" data-i18n="ls2">搜索目的地信息...</div>
+      <div class="lstep" id="ls3" data-i18n="ls3">生成个性化行程...</div>
+    </div>
+    <div class="ltime" id="ltime"></div>
+  </div>
+
+  <!-- 结果区 -->
+  <div class="result-sec" id="resultSec">
+    <div class="result-hd">
+      <div class="result-title" id="resultTitle">行程规划</div>
+      <div class="chips" id="resultChips"></div>
+    </div>
+    <div class="result-grid">
+      <!-- 左列：行程内容 + 工具调用日志 -->
+      <div class="itin-col">
+      <div class="itin-card">
+        <div class="itin-head">
+          <div class="itin-head-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1L10 6H15L11 9.5L12.5 15L8 12L3.5 15L5 9.5L1 6H6L8 1Z" fill="#FF6B35"/></svg>
+          </div>
+          <span class="itin-head-title" id="itinHeadTitle"></span>
+          <div class="itin-actions">
+            <button class="act-btn" id="bkQuickBtn" style="display:none;background:var(--accent);color:#fff;border:none">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                <path d="M2 5.5A1.5 1.5 0 013.5 4h9A1.5 1.5 0 0114 5.5v1a1.5 1.5 0 010 3v1A1.5 1.5 0 0112.5 12h-9A1.5 1.5 0 012 10.5v-1a1.5 1.5 0 010-3v-1z" stroke="currentColor" stroke-width="1.3"/>
+                <line x1="6" y1="4" x2="6" y2="12" stroke="currentColor" stroke-width="1" stroke-dasharray="1.5 1.5" stroke-linecap="round"/>
+              </svg>
+              <span data-i18n="btn_ticket">搜索票务</span>
+            </button>
+            <button class="act-btn" onclick="copyResult()">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><rect x="5" y="5" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M11 5V4a2 2 0 00-2-2H4a2 2 0 00-2 2v5a2 2 0 002 2h1" stroke="currentColor" stroke-width="1.5"/></svg>
+              <span data-i18n="btn_copy">复制</span>
+            </button>
+            <button class="act-btn" onclick="shareTrip()">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="13" cy="3" r="2" stroke="currentColor" stroke-width="1.4"/><circle cx="13" cy="13" r="2" stroke="currentColor" stroke-width="1.4"/><circle cx="3" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/><path d="M4.8 7.1L11.2 4M4.8 8.9l6.4 3.1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+              分享
+            </button>
+            <button class="act-btn" onclick="printTrip()">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><rect x="3" y="6" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 6V3.5A1.5 1.5 0 016.5 2h3A1.5 1.5 0 0111 3.5V6" stroke="currentColor" stroke-width="1.3"/><rect x="5" y="10" width="6" height="1.5" rx=".75" fill="currentColor" opacity=".5"/></svg>
+              打印/PDF
+            </button>
+            <button class="act-btn" onclick="saveTrip()" id="saveTripBtn">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 1v9M5 7l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+              保存
+            </button>
+          </div>
+        </div>
+        <div class="itin-body" id="itinBody">
+          <div class="md" id="itinContent"></div>
+        </div>
+      </div>
+      </div><!-- /itin-col -->
+      <!-- 右列：侧边栏（行程摘要 / 规划过程 / 出行贴士）-->
+      <div class="side" id="sideCards"></div>
+    </div>
+
+    <!-- 票务搜索面板（行程生成后在此内联展示，不再滚动到底部）-->
+    <div class="booking-wrap" id="bookingWrap" style="display:none">
+      <div class="bk-header">
+        <div class="bk-title" data-i18n="bk_title">搜索交通票务</div>
+        <button class="bk-close" onclick="document.getElementById('bookingWrap').style.display='none'" title="关闭">✕</button>
+      </div>
+      <div class="bk-tabs">
+        <button class="bk-tab active" id="bkTabFlight" onclick="setBkType('flight')" data-i18n="bk_flight">机票</button>
+        <button class="bk-tab" id="bkTabTrain" onclick="setBkType('train')" data-i18n="bk_train">火车票</button>
+        <button class="bk-tab" id="bkTabOrders" onclick="showOrders()" data-i18n="bk_orders">我的订单</button>
+      </div>
+      <div id="bkSearchArea">
+        <div class="bk-form">
+          <div class="bk-field"><label data-i18n="bk_origin">出发城市</label><input class="bk-input" id="bkOrigin" placeholder="上海"></div>
+          <div class="bk-field"><label data-i18n="bk_dest">目的城市</label><input class="bk-input" id="bkDest" placeholder="巴黎"></div>
+          <div class="bk-field"><label data-i18n="bk_date">出发日期</label><input class="bk-input" id="bkDate" type="date"></div>
+          <button class="bk-search-btn" onclick="searchTickets()" data-i18n="bk_search">搜索</button>
+        </div>
+        <div id="ticketResults" class="ticket-list"></div>
+      </div>
+      <div id="bkOrdersArea" style="display:none">
+        <div id="ordersList" class="ticket-list"></div>
+      </div>
+    </div>
+
+    <div class="chat-wrap">
+      <div class="chat-toggle" id="chatToggle" onclick="toggleChat()">
+        <span data-i18n="chat_log">对话记录</span>
+        <span id="chatCnt" style="color:var(--accent);font-weight:700;margin-left:4px"></span>
+        <span style="flex:1"></span>
+        <span class="ch-arrow">▾</span>
+      </div>
+      <div class="chat-hist" id="chatHist"></div>
+    </div>
+  </div>
+
+  <!-- 欢迎区 -->
+  <div class="welcome-sec" id="welcomeSec">
+    <!-- 三种系统 -->
+    <div class="sys-grid">
+      <div class="sys-card rule" onclick="switchSys('rule_based')">
+        <div class="sys-card-top">
+          <div class="sys-icon">
+            <!-- 罗盘 / compass — 经典规划 -->
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="7.5" stroke="#8C6E4E" stroke-width="1.4"/>
+              <path d="M10 3.5V5M10 15v1.5M3.5 10H5M15 10h1.5" stroke="#8C6E4E" stroke-width="1.1" stroke-linecap="round" opacity=".45"/>
+              <path d="M10 10L8.2 6.2l-1 3.8z" fill="#8C6E4E"/>
+              <path d="M10 10l1.8 3.8 1-3.8z" fill="#8C6E4E" opacity=".28"/>
+              <circle cx="10" cy="10" r="1.4" fill="white" stroke="#8C6E4E" stroke-width="1"/>
+            </svg>
+          </div>
+          <span class="sys-badge" data-i18n="sys_rule_badge">规则系统</span>
+        </div>
+        <div class="sys-name" data-i18n="sys_rule_name">经典规划</div>
+        <div class="sys-desc" data-i18n="sys_rule_desc">人工编写的 25 城专家规则库，景点·餐厅·交通·贴士全套内置，每条推荐精准溯源至具体规则，逻辑 100% 透明可审查，无需联网，毫秒响应。</div>
+        <div class="sys-metrics">
+          <div class="sys-metric"><div class="sm-val">25</div><div class="sm-key" data-i18n="sys_rule_k1">覆盖城市</div></div>
+          <div class="sys-metric"><div class="sm-val">&lt;0.1s</div><div class="sm-key" data-i18n="sys_rule_k2">响应时间</div></div>
+          <div class="sys-metric"><div class="sm-val">100%</div><div class="sm-key" data-i18n="sys_rule_k3">可解释性</div></div>
+        </div>
+      </div>
+      <div class="sys-card ml" onclick="switchSys('supervised')">
+        <div class="sys-card-top">
+          <div class="sys-icon">
+            <!-- 神经网络节点 / neural nodes — 偏好匹配 -->
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <circle cx="3.5" cy="10" r="2.2" fill="rgba(100,130,108,.18)" stroke="#64826C" stroke-width="1.4"/>
+              <circle cx="16.5" cy="4.5" r="2.2" fill="rgba(100,130,108,.18)" stroke="#64826C" stroke-width="1.4"/>
+              <circle cx="16.5" cy="15.5" r="2.2" fill="rgba(100,130,108,.18)" stroke="#64826C" stroke-width="1.4"/>
+              <line x1="5.6" y1="9.1" x2="14.4" y2="5.4" stroke="#64826C" stroke-width="1.2" stroke-linecap="round"/>
+              <line x1="5.6" y1="10.9" x2="14.4" y2="14.6" stroke="#64826C" stroke-width="1.2" stroke-linecap="round"/>
+              <circle cx="10" cy="7.2" r="1.5" fill="#64826C" opacity=".38"/>
+              <circle cx="10" cy="12.8" r="1.5" fill="#64826C" opacity=".38"/>
+            </svg>
+          </div>
+          <span class="sys-badge" data-i18n="sys_ml_badge">机器学习</span>
+        </div>
+        <div class="sys-name" data-i18n="sys_ml_name">偏好匹配</div>
+        <div class="sys-desc" data-i18n="sys_ml_desc">集成学习模型综合分析出行偏好、预算与人群特征，从 8 种旅行模式中智能匹配最适方案，推荐依据特征权重完全透明可查。</div>
+        <div class="sys-metrics">
+          <div class="sys-metric"><div class="sm-val">84.5%</div><div class="sm-key" data-i18n="sys_ml_k1">模型准确率</div></div>
+          <div class="sys-metric"><div class="sm-val">8</div><div class="sm-key" data-i18n="sys_ml_k2">旅行模式</div></div>
+          <div class="sys-metric"><div class="sm-val">13</div><div class="sm-key" data-i18n="sys_ml_k3">偏好维度</div></div>
+        </div>
+      </div>
+      <div class="sys-card ai" onclick="switchSys('goal_based')">
+        <div class="sys-card-top">
+          <div class="sys-icon">
+            <!-- 地球 + 实时信号 / globe with live signal — 实时规划 -->
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="7" stroke="#C4854A" stroke-width="1.5"/>
+              <path d="M10 3c-2 1.8-3.2 4.2-3.2 7s1.2 5.2 3.2 7" stroke="#C4854A" stroke-width="1.2" stroke-linecap="round"/>
+              <path d="M10 3c2 1.8 3.2 4.2 3.2 7s-1.2 5.2-3.2 7" stroke="#C4854A" stroke-width="1.2" stroke-linecap="round"/>
+              <path d="M3.2 10h13.6" stroke="#C4854A" stroke-width="1.2" stroke-linecap="round"/>
+              <path d="M3.8 7h12.4M3.8 13h12.4" stroke="#C4854A" stroke-width="1" stroke-linecap="round" opacity=".38"/>
+              <circle cx="15.5" cy="4.5" r="1.6" fill="#C4854A"/>
+              <circle cx="15.5" cy="4.5" r="3" stroke="#C4854A" stroke-width="1" opacity=".25"/>
+            </svg>
+          </div>
+          <span class="sys-badge" data-i18n="sys_ai_badge">推荐使用</span>
+        </div>
+        <div class="sys-name" data-i18n="sys_ai_name">实时规划</div>
+        <div class="sys-model">Powered by 通义千问 · Qwen</div>
+        <div class="sys-desc" data-i18n-html="sys_ai_desc">大模型自主决策，联网搜索目的地最新票价、开放时间与住宿推荐，支持<strong>全球任意目的地</strong>，每份行程都基于当下最新数据生成。</div>
+        <div class="sys-metrics">
+          <div class="sys-metric"><div class="sm-val">∞</div><div class="sm-key" data-i18n="sys_ai_k1">城市覆盖</div></div>
+          <div class="sys-metric"><div class="sm-val" data-i18n="sys_ai_v2">实时</div><div class="sm-key" data-i18n="sys_ai_k2">联网获取</div></div>
+          <div class="sys-metric"><div class="sm-val">Qwen</div><div class="sm-key" data-i18n="sys_ai_k3">核心模型</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 热门目的地 -->
+    <div class="sec-head">
+      <h3 data-i18n="sec_hot_dest">热门目的地</h3>
+      <div class="sec-line"></div>
+      <span class="sec-more" id="destShowMore" onclick="toggleMoreDests(this)" data-i18n="sec_more">查看全部 ›</span>
+    </div>
+    <div class="dest-grid">
+      <div class="dest-card" onclick="quickPlan('巴黎','高',['文化','美食'],'情侣',5)">
+        <img class="dest-img" src="https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=600&q=75" alt="巴黎" loading="lazy">
+        <div class="dest-overlay"></div>
+        <div class="dest-badge hot" data-i18n="badge_hot">热门</div>
+        <div class="dest-info">
+          <div class="dest-name" data-i18n="dest_paris">巴黎</div>
+          <div class="dest-sub" data-i18n="dest_paris_sub">法国 · 浪漫之都</div>
+          <div class="dest-bottom">
+            <div class="dest-price">¥6,000<span data-i18n="price_suffix">起/人</span></div>
+            <div class="dest-rating"><div class="dest-stars">★★★★★</div><div class="dest-rscore">4.9</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="dest-card" onclick="quickPlan('东京','中',['美食','购物'],'朋友',4)">
+        <img class="dest-img" src="https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=600&q=75" alt="东京" loading="lazy">
+        <div class="dest-overlay"></div>
+        <div class="dest-badge hot" data-i18n="badge_hot">热门</div>
+        <div class="dest-info">
+          <div class="dest-name" data-i18n="dest_tokyo">东京</div>
+          <div class="dest-sub" data-i18n="dest_tokyo_sub">日本 · 都市与传统</div>
+          <div class="dest-bottom">
+            <div class="dest-price">¥5,200<span data-i18n="price_suffix">起/人</span></div>
+            <div class="dest-rating"><div class="dest-stars">★★★★★</div><div class="dest-rscore">4.8</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="dest-card" onclick="quickPlan('纽约','中',['文化','历史'],'家庭',5)">
+        <img class="dest-img" src="https://images.unsplash.com/photo-1534430480872-3498386e7856?auto=format&fit=crop&w=600&q=75" alt="纽约" loading="lazy">
+        <div class="dest-overlay"></div>
+        <div class="dest-info">
+          <div class="dest-name" data-i18n="dest_nyc">纽约</div>
+          <div class="dest-sub" data-i18n="dest_nyc_sub">美国 · 城市之巅</div>
+          <div class="dest-bottom">
+            <div class="dest-price">¥8,800<span data-i18n="price_suffix">起/人</span></div>
+            <div class="dest-rating"><div class="dest-stars">★★★★☆</div><div class="dest-rscore">4.7</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="dest-card" onclick="quickPlan('迪拜','高',['购物','自然'],'夫妻',4)">
+        <img class="dest-img" src="https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=600&q=75" alt="迪拜" loading="lazy">
+        <div class="dest-overlay"></div>
+        <div class="dest-badge" style="background:#9333EA" data-i18n="badge_luxury">奢华</div>
+        <div class="dest-info">
+          <div class="dest-name" data-i18n="dest_dubai">迪拜</div>
+          <div class="dest-sub" data-i18n="dest_dubai_sub">阿联酋 · 未来之城</div>
+          <div class="dest-bottom">
+            <div class="dest-price">¥9,000<span data-i18n="price_suffix">起/人</span></div>
+            <div class="dest-rating"><div class="dest-stars">★★★★★</div><div class="dest-rscore">4.9</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="dest-card" onclick="quickPlan('首尔','低',['美食','购物'],'朋友',4)">
+        <img class="dest-img" src="https://images.unsplash.com/photo-1517154421773-0529f29ea451?auto=format&fit=crop&w=600&q=75" alt="首尔" loading="lazy">
+        <div class="dest-overlay"></div>
+        <div class="dest-badge new" data-i18n="badge_value">性价比</div>
+        <div class="dest-info">
+          <div class="dest-name" data-i18n="dest_seoul">首尔</div>
+          <div class="dest-sub" data-i18n="dest_seoul_sub">韩国 · 潮流前线</div>
+          <div class="dest-bottom">
+            <div class="dest-price">¥3,600<span data-i18n="price_suffix">起/人</span></div>
+            <div class="dest-rating"><div class="dest-stars">★★★★☆</div><div class="dest-rscore">4.6</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="dest-card" onclick="quickPlan('普吉岛','中',['自然','美食'],'朋友',5)">
+        <img class="dest-img" src="https://images.unsplash.com/photo-1589394815804-964ed0be2eb5?auto=format&fit=crop&w=600&q=75" alt="普吉岛" loading="lazy">
+        <div class="dest-overlay"></div>
+        <div class="dest-badge new" data-i18n="badge_island">海岛</div>
+        <div class="dest-info">
+          <div class="dest-name" data-i18n="dest_phuket">普吉岛</div>
+          <div class="dest-sub" data-i18n="dest_phuket_sub">泰国 · 海岛天堂</div>
+          <div class="dest-bottom">
+            <div class="dest-price">¥4,200<span data-i18n="price_suffix">起/人</span></div>
+            <div class="dest-rating"><div class="dest-stars">★★★★☆</div><div class="dest-rscore">4.7</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="dest-card" onclick="quickPlan('伦敦','中',['历史','文化'],'单人',4)">
+        <img class="dest-img" src="https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=600&q=75" alt="伦敦" loading="lazy">
+        <div class="dest-overlay"></div>
+        <div class="dest-info">
+          <div class="dest-name" data-i18n="dest_london">伦敦</div>
+          <div class="dest-sub" data-i18n="dest_london_sub">英国 · 经典与现代</div>
+          <div class="dest-bottom">
+            <div class="dest-price">¥5,500<span data-i18n="price_suffix">起/人</span></div>
+            <div class="dest-rating"><div class="dest-stars">★★★★☆</div><div class="dest-rscore">4.6</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="dest-card" onclick="quickPlan('罗马','高',['历史','艺术'],'夫妻',4)">
+        <img class="dest-img" src="https://images.unsplash.com/photo-1552832230-c0197dd311b5?auto=format&fit=crop&w=600&q=75" alt="罗马" loading="lazy">
+        <div class="dest-overlay"></div>
+        <div class="dest-info">
+          <div class="dest-name" data-i18n="dest_rome">罗马</div>
+          <div class="dest-sub" data-i18n="dest_rome_sub">意大利 · 永恒之城</div>
+          <div class="dest-bottom">
+            <div class="dest-price">¥7,200<span data-i18n="price_suffix">起/人</span></div>
+            <div class="dest-rating"><div class="dest-stars">★★★★★</div><div class="dest-rscore">4.8</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="dest-card" onclick="quickPlan('新加坡','中',['美食','文化'],'朋友',4)">
+        <img class="dest-img" src="https://images.unsplash.com/photo-1525625293386-3f8f99389edd?auto=format&fit=crop&w=600&q=75" alt="新加坡" loading="lazy">
+        <div class="dest-overlay"></div>
+        <div class="dest-badge hot" data-i18n="badge_hot">热门</div>
+        <div class="dest-info">
+          <div class="dest-name" data-i18n="dest_singapore">新加坡</div>
+          <div class="dest-sub" data-i18n="dest_singapore_sub">新加坡 · 花园城市</div>
+          <div class="dest-bottom">
+            <div class="dest-price">¥4,800<span data-i18n="price_suffix">起/人</span></div>
+            <div class="dest-rating"><div class="dest-stars">★★★★★</div><div class="dest-rscore">4.8</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 查看全部后展开：10座更多城市 -->
+      <div id="extraDestCards" style="display:none">
+      <div class="dest-card" onclick="quickPlan('悉尼','中',['自然','文化'],'朋友',5)">
+        <img class="dest-img" src="https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?auto=format&fit=crop&w=600&q=75" alt="悉尼" loading="lazy">
+        <div class="dest-overlay"></div>
+        <div class="dest-info">
+          <div class="dest-name" data-i18n="dest_sydney">悉尼</div>
+          <div class="dest-sub" data-i18n="dest_sydney_sub">澳大利亚 · 港湾之城</div>
+          <div class="dest-bottom">
+            <div class="dest-price">¥7,800<span data-i18n="price_suffix">起/人</span></div>
+            <div class="dest-rating"><div class="dest-stars">★★★★★</div><div class="dest-rscore">4.8</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="dest-card" onclick="quickPlan('巴塞罗那','中',['文化','美食'],'朋友',5)">
+        <img class="dest-img" src="https://images.unsplash.com/photo-1539037116277-4db20889f2d4?auto=format&fit=crop&w=600&q=75" alt="巴塞罗那" loading="lazy">
+        <div class="dest-overlay"></div>
+        <div class="dest-info">
+          <div class="dest-name" data-i18n="dest_barcelona">巴塞罗那</div>
+          <div class="dest-sub" data-i18n="dest_barcelona_sub">西班牙 · 艺术之都</div>
+          <div class="dest-bottom">
+            <div class="dest-price">¥6,500<span data-i18n="price_suffix">起/人</span></div>
+            <div class="dest-rating"><div class="dest-stars">★★★★★</div><div class="dest-rscore">4.8</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="dest-card" onclick="quickPlan('曼谷','低',['美食','文化'],'朋友',4)">
+        <img class="dest-img" src="https://images.unsplash.com/photo-1563492065599-3520f775eeed?auto=format&fit=crop&w=600&q=75" alt="曼谷" loading="lazy">
+        <div class="dest-overlay"></div>
+        <div class="dest-info">
+          <div class="dest-name" data-i18n="dest_bangkok">曼谷</div>
+          <div class="dest-sub" data-i18n="dest_bangkok_sub">泰国 · 微笑之城</div>
+          <div class="dest-bottom">
+            <div class="dest-price">¥2,800<span data-i18n="price_suffix">起/人</span></div>
+            <div class="dest-rating"><div class="dest-stars">★★★★☆</div><div class="dest-rscore">4.7</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="dest-card" onclick="quickPlan('阿姆斯特丹','中',['文化','历史'],'情侣',4)">
+        <img class="dest-img" src="https://images.unsplash.com/photo-1512470876302-972faa2aa9a4?auto=format&fit=crop&w=600&q=75" alt="阿姆斯特丹" loading="lazy">
+        <div class="dest-overlay"></div>
+        <div class="dest-info">
+          <div class="dest-name" data-i18n="dest_amsterdam">阿姆斯特丹</div>
+          <div class="dest-sub" data-i18n="dest_amsterdam_sub">荷兰 · 运河之城</div>
+          <div class="dest-bottom">
+            <div class="dest-price">¥7,200<span data-i18n="price_suffix">起/人</span></div>
+            <div class="dest-rating"><div class="dest-stars">★★★★☆</div><div class="dest-rscore">4.7</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="dest-card" onclick="quickPlan('维也纳','中',['文化','历史'],'情侣',4)">
+        <img class="dest-img" src="https://images.unsplash.com/photo-1528360983277-13d401cdc186?auto=format&fit=crop&w=600&q=75" alt="维也纳" loading="lazy">
+        <div class="dest-overlay"></div>
+        <div class="dest-info">
+          <div class="dest-name" data-i18n="dest_vienna">维也纳</div>
+          <div class="dest-sub" data-i18n="dest_vienna_sub">奥地利 · 音乐之都</div>
+          <div class="dest-bottom">
+            <div class="dest-price">¥6,800<span data-i18n="price_suffix">起/人</span></div>
+            <div class="dest-rating"><div class="dest-stars">★★★★★</div><div class="dest-rscore">4.8</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="dest-card" onclick="quickPlan('布拉格','低',['历史','文化'],'朋友',4)">
+        <img class="dest-img" src="https://images.unsplash.com/photo-1541849546-216549ae216d?auto=format&fit=crop&w=600&q=75" alt="布拉格" loading="lazy">
+        <div class="dest-overlay"></div>
+        <div class="dest-info">
+          <div class="dest-name" data-i18n="dest_prague">布拉格</div>
+          <div class="dest-sub" data-i18n="dest_prague_sub">捷克 · 童话古城</div>
+          <div class="dest-bottom">
+            <div class="dest-price">¥4,200<span data-i18n="price_suffix">起/人</span></div>
+            <div class="dest-rating"><div class="dest-stars">★★★★★</div><div class="dest-rscore">4.9</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="dest-card" onclick="quickPlan('马尔代夫','高',['自然','购物'],'情侣',5)">
+        <img class="dest-img" src="https://images.unsplash.com/photo-1573843981267-be1999ff37cd?auto=format&fit=crop&w=600&q=75" alt="马尔代夫" loading="lazy">
+        <div class="dest-overlay"></div>
+        <div class="dest-badge" style="background:#06b6d4" data-i18n="badge_island">海岛</div>
+        <div class="dest-info">
+          <div class="dest-name" data-i18n="dest_maldives">马尔代夫</div>
+          <div class="dest-sub" data-i18n="dest_maldives_sub">印度洋 · 蓝色天堂</div>
+          <div class="dest-bottom">
+            <div class="dest-price">¥12,000<span data-i18n="price_suffix">起/人</span></div>
+            <div class="dest-rating"><div class="dest-stars">★★★★★</div><div class="dest-rscore">4.9</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="dest-card" onclick="quickPlan('伊斯坦布尔','中',['历史','文化'],'朋友',5)">
+        <img class="dest-img" src="https://images.unsplash.com/photo-1524231757912-21f4fe3a7200?auto=format&fit=crop&w=600&q=75" alt="伊斯坦布尔" loading="lazy">
+        <div class="dest-overlay"></div>
+        <div class="dest-info">
+          <div class="dest-name" data-i18n="dest_istanbul">伊斯坦布尔</div>
+          <div class="dest-sub" data-i18n="dest_istanbul_sub">土耳其 · 东西方交汇</div>
+          <div class="dest-bottom">
+            <div class="dest-price">¥3,800<span data-i18n="price_suffix">起/人</span></div>
+            <div class="dest-rating"><div class="dest-stars">★★★★☆</div><div class="dest-rscore">4.7</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="dest-card" onclick="quickPlan('里斯本','中',['历史','美食'],'情侣',5)">
+        <img class="dest-img" src="https://images.unsplash.com/photo-1555881400-74d7acaacd8b?auto=format&fit=crop&w=600&q=75" alt="里斯本" loading="lazy">
+        <div class="dest-overlay"></div>
+        <div class="dest-info">
+          <div class="dest-name" data-i18n="dest_lisbon">里斯本</div>
+          <div class="dest-sub" data-i18n="dest_lisbon_sub">葡萄牙 · 法朵古都</div>
+          <div class="dest-bottom">
+            <div class="dest-price">¥5,500<span data-i18n="price_suffix">起/人</span></div>
+            <div class="dest-rating"><div class="dest-stars">★★★★★</div><div class="dest-rscore">4.8</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="dest-card" onclick="quickPlan('巴厘岛','低',['自然','文化'],'朋友',5)">
+        <img class="dest-img" src="https://images.unsplash.com/photo-1537996194471-e657df975ab4?auto=format&fit=crop&w=600&q=75" alt="巴厘岛" loading="lazy">
+        <div class="dest-overlay"></div>
+        <div class="dest-badge" style="background:#10b981" data-i18n="badge_tropical">热带</div>
+        <div class="dest-info">
+          <div class="dest-name" data-i18n="dest_bali">巴厘岛</div>
+          <div class="dest-sub" data-i18n="dest_bali_sub">印尼 · 神明之岛</div>
+          <div class="dest-bottom">
+            <div class="dest-price">¥3,200<span data-i18n="price_suffix">起/人</span></div>
+            <div class="dest-rating"><div class="dest-stars">★★★★★</div><div class="dest-rscore">4.9</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="dest-card" onclick="quickPlan('大阪','中',['美食','文化'],'朋友',4)">
+        <img class="dest-img" src="https://images.unsplash.com/photo-1590559899731-a382839e5549?auto=format&fit=crop&w=600&q=75" alt="大阪" loading="lazy">
+        <div class="dest-overlay"></div>
+        <div class="dest-info">
+          <div class="dest-name" data-i18n="dest_osaka">大阪</div>
+          <div class="dest-sub" data-i18n="dest_osaka_sub">日本 · 美食之都</div>
+          <div class="dest-bottom">
+            <div class="dest-price">¥4,200<span data-i18n="price_suffix">起/人</span></div>
+            <div class="dest-rating"><div class="dest-stars">★★★★★</div><div class="dest-rscore">4.9</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="dest-card" onclick="quickPlan('京都','中',['历史','文化'],'情侣',4)">
+        <img class="dest-img" src="https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=600&q=75" alt="京都" loading="lazy">
+        <div class="dest-overlay"></div>
+        <div class="dest-info">
+          <div class="dest-name" data-i18n="dest_kyoto">京都</div>
+          <div class="dest-sub" data-i18n="dest_kyoto_sub">日本 · 千年古都</div>
+          <div class="dest-bottom">
+            <div class="dest-price">¥4,500<span data-i18n="price_suffix">起/人</span></div>
+            <div class="dest-rating"><div class="dest-stars">★★★★★</div><div class="dest-rscore">4.9</div></div>
+          </div>
+        </div>
+      </div>
+      </div><!-- /extraDestCards -->
+    </div>
+
+    <!-- 我的旅行 -->
+    <div id="myTripsSection" style="display:none">
+      <div class="sec-head">
+        <h3 data-i18n="sec_my_trips">我的旅行记录</h3>
+        <div class="sec-line"></div>
+        <span class="sec-more" onclick="clearTrips()" style="cursor:pointer;color:rgba(255,0,0,.5)" data-i18n="btn_clear_trips">清空</span>
+      </div>
+      <div class="my-trips-grid" id="myTripsGrid"></div>
+    </div>
+  </div>
+
+  <!-- Page footer -->
+  <footer class="page-footer">
+    <strong>Voya</strong> — AI Travel Planner<br>
+    Rule-Based &nbsp;·&nbsp; Supervised Learning &nbsp;·&nbsp; Goal-Oriented Agent
+  </footer>
+</div>
+
+<!-- 地名消歧义弹窗 -->
+<div class="modal-overlay" id="disambigModal" onclick="if(event.target===this)closeDisambig()">
+  <div class="modal-box disambig-box">
+    <div class="disambig-icon">📍</div>
+    <div class="modal-title" id="disambigTitle">请确认目的地</div>
+    <div class="modal-sub" id="disambigSub">「<span id="disambigQuery"></span>」在多个省市都有同名地点，请选择您想去的：</div>
+    <div id="disambigOptions" class="disambig-options"></div>
+    <button class="disambig-skip" onclick="closeDisambig(true)">直接使用原名搜索</button>
+  </div>
+</div>
+
+<!-- 预订弹窗 -->
+<div class="modal-overlay" id="bookingModal" onclick="if(event.target===this)closeModal()">
+  <div class="modal-box">
+    <div class="modal-title">填写乘客信息</div>
+    <div class="modal-sub" id="modalTicketInfo"></div>
+    <div class="modal-field"><label>乘客姓名 *</label><input id="passengerName" placeholder="请输入真实姓名"></div>
+    <div class="modal-field"><label>证件号码（选填）</label><input id="passengerIdNo" placeholder="身份证号（仅保存后4位）"></div>
+    <div class="modal-btns">
+      <button class="modal-cancel" onclick="closeModal()">取消</button>
+      <button class="modal-confirm" onclick="confirmBooking()">确认预订</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── BOTTOM BAR ─────────────────────────────────── -->
+<div class="bot-bar">
+  <div class="bot-inner">
+    <span class="bot-hint" data-i18n="bot_hint">快速规划：</span>
+    <input class="bot-input" id="botInput" data-i18n-placeholder="bot_ph"
+      placeholder="直接描述，如：从北京飞迪拜5天，夫妻，喜欢购物和美食，预算充裕..."
+      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();doChat()}">
+    <button class="bot-send" id="botSendBtn" onclick="doChat()">
+      <svg viewBox="0 0 18 18" fill="none"><path d="M2 9h14M9 2l7 7-7 7" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <!-- 工具按钮：与发送按钮同行对齐 -->
+    <button class="bot-tools-btn" onclick="toggleTools()" title="实用工具">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+        <line x1="2" y1="4" x2="14" y2="4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        <line x1="2" y1="8" x2="14" y2="8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        <line x1="2" y1="12" x2="14" y2="12" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        <circle cx="5.5" cy="4" r="1.8" fill="rgba(245,243,239,.92)" stroke="currentColor" stroke-width="1.3"/>
+        <circle cx="10.5" cy="8" r="1.8" fill="rgba(245,243,239,.92)" stroke="currentColor" stroke-width="1.3"/>
+        <circle cx="6.5" cy="12" r="1.8" fill="rgba(245,243,239,.92)" stroke="currentColor" stroke-width="1.3"/>
+      </svg>
+      <span data-i18n="btn_tools">工具</span>
+    </button>
+  </div>
+</div>
+<div class="tools-panel" id="toolsPanel">
+  <div class="tp-tabs">
+    <button class="tp-tab active" onclick="switchTpTab(this,'tp-currency')" data-i18n="tp_tab_currency">汇率</button>
+    <button class="tp-tab" onclick="switchTpTab(this,'tp-emergency')" data-i18n="tp_tab_emergency">紧急</button>
+    <button class="tp-tab" onclick="switchTpTab(this,'tp-phrases')" data-i18n="tp_tab_phrases">短语</button>
+  </div>
+  <!-- Currency -->
+  <div class="tp-section active" id="tp-currency">
+    <div class="tp-title" data-i18n="tp_currency_title">汇率换算</div>
+    <!-- 金额输入 -->
+    <input class="cx-input" id="cxAmount" placeholder="输入金额，如 100" data-i18n-placeholder="tp_currency_ph" type="number" oninput="calcCurrency()" style="width:100%;margin-bottom:8px;box-sizing:border-box">
+    <!-- 货币选择行 -->
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">
+      <select class="cx-sel" id="cxFrom" onchange="calcCurrency()" style="flex:1;min-width:0">
+        <option value="CNY">人民币 CNY</option>
+        <option value="EUR">欧元 EUR</option>
+        <option value="USD">美元 USD</option>
+        <option value="JPY">日元 JPY</option>
+        <option value="GBP">英镑 GBP</option>
+        <option value="KRW">韩元 KRW</option>
+        <option value="SGD">新元 SGD</option>
+        <option value="AED">迪拉姆 AED</option>
+        <option value="THB">泰铢 THB</option>
+        <option value="AUD">澳元 AUD</option>
+        <option value="TRY">里拉 TRY</option>
+        <option value="HKD">港元 HKD</option>
+      </select>
+      <button onclick="swapCurrency()" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text2);padding:7px 8px;cursor:pointer;font-size:12px;flex-shrink:0">⇄</button>
+      <select class="cx-sel" id="cxTo" onchange="calcCurrency()" style="flex:1;min-width:0">
+        <option value="EUR">欧元 EUR</option>
+        <option value="CNY">人民币 CNY</option>
+        <option value="USD">美元 USD</option>
+        <option value="JPY">日元 JPY</option>
+        <option value="GBP">英镑 GBP</option>
+        <option value="KRW">韩元 KRW</option>
+        <option value="SGD">新元 SGD</option>
+        <option value="AED">迪拉姆 AED</option>
+        <option value="THB">泰铢 THB</option>
+        <option value="AUD">澳元 AUD</option>
+        <option value="TRY">里拉 TRY</option>
+        <option value="HKD">港元 HKD</option>
+      </select>
+    </div>
+    <div class="cx-result" id="cxResult" data-i18n="tp_currency_hint">输入金额开始换算</div>
+    <div style="font-size:9.5px;color:var(--text-light);margin-top:8px;text-align:center" data-i18n="tp_currency_note">参考汇率 · 实际以银行为准</div>
+  </div>
+  <!-- Emergency -->
+  <div class="tp-section" id="tp-emergency">
+    <div class="tp-title" data-i18n="tp_emergency_title">紧急联系方式</div>
+    <select class="em-city-sel" id="emCitySel" onchange="renderEmergency()">
+      <option value="" data-i18n="tp_city_sel">选择城市</option>
+    </select>
+    <div id="emContent"></div>
+  </div>
+  <!-- Phrases -->
+  <div class="tp-section" id="tp-phrases">
+    <div class="tp-title" data-i18n="tp_phrases_title">常用短语</div>
+    <select class="phrase-city-sel" id="phraseCitySel" onchange="renderPhrases()">
+      <option value="" data-i18n="tp_city_sel">选择城市</option>
+    </select>
+    <div class="phrase-list" id="phraseList"></div>
+  </div>
+</div>
+
+<script src="assets/app.js?v=7"></script>
+
+<!-- 全局 autocomplete 浮层（fixed 定位，不受父级 overflow:hidden 影响） -->
+<div id="globalAC" class="ac-dropdown-fixed"></div>
+
+</body>
+</html>

@@ -1,0 +1,72 @@
+node_modules
+dist
+.DS_Store
+*.swp
+.git/*
+__pycache__/
+*.pyc
+.venv
+
+# 日志与运行时文件
+logs/
+*.log
+
+# Claude 本地配置
+.claude/
+
+# 平台配置文件
+.coze
+
+# 大型分析结果文件（本地运行生成，不入库）
+fairness_analysis/results_*.json
+fairness_analysis/sampled_*.json
+
+# 知识库向量数据库（二进制，运行时生成）
+assets/knowledge_db/
+
+# 旧版代码结构
+src/
+
+# 包管理锁文件（使用 requirements_local.txt）
+uv.lock
+pyproject.toml
+*.o
+*.a
+/vendor
+*.egg-info/
+/.env
+.env
+
+# 视频文件
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.mkv
+*.webm
+*.m4v
+*.mpeg
+*.mpg
+*.3gp
+*.f4v
+*.rmvb
+*.vob
+
+# 归档文件
+*.iso
+*.dmg
+*.rar
+*.zip
+*.gz
+
+# 文档类也默认加入
+*.pdf
+*.docx
+*.doc
+*.xlsx
+*.xls
+*.ppt
+*.pptx
+*.xlsx
+*.csv

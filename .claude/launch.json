@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "FastAPI Web Server",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "uvicorn", "web.api_server:app", "--host", "0.0.0.0", "--port", "8000", "--reload"],
+      "port": 8000
+    },
+    {
+      "name": "Static HTML Server (web/index.html)",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8080", "--directory", "web"],
+      "port": 8080
+    }
+  ]
+}

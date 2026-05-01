@@ -1,0 +1,56 @@
+# 旅行规划系统 - 本地运行依赖
+# 移除扣子私有 SDK，使用公开 API
+
+# 核心依赖
+fastapi>=0.115.0,<1.0.0
+uvicorn[standard]>=0.32.0,<1.0.0
+pydantic>=2.10.0,<3.0.0
+
+# LangChain（保留用于监督学习和规则系统）
+langchain>=1.0.0,<2.0.0
+langchain-openai==1.0.1
+
+# HTTP 请求
+requests>=2.32.0,<3.0.0
+httpx>=0.27.0,<1.0.0
+
+# 环境变量
+python-dotenv>=1.2.0,<2.0.0
+
+# OpenAI SDK（替代扣子 SDK，支持豆包、通义千问等）
+openai>=1.60.0,<2.0.0
+
+# 本地知识库
+chromadb>=0.4.0,<1.0.0
+
+# Web Search API
+tavily-python>=0.5.0,<1.0.0
+
+# 监督学习
+scikit-learn>=1.4.0,<2.0.0
+numpy>=1.26.0,<3.0.0
+
+# 其他工具
+python-dateutil>=2.9.0,<3.0.0
+typing-extensions>=4.12.0,<5.0.0
+
+# ================================
+# 安装说明
+# ================================
+#
+# 方法 1: 使用 pip
+#   pip install -r requirements_local.txt
+#
+# 方法 2: 使用国内镜像
+#   pip install -r requirements_local.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+#
+# ================================
+# 注意事项
+# ================================
+#
+# - 已移除：coze-coding-dev-sdk（扣子私有，本地无法安装）
+# - 已移除：PyGObject, dbus-python（Linux 专属）
+# - 已添加：openai（用于大模型调用）
+# - 已添加：tavily-python（用于 Web Search）
+#
+# ================================
