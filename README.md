@@ -57,6 +57,54 @@ python scripts/start_and_preview.py
 
 ---
 
+## Phase 2 实现材料
+
+三套系统均已完成批量测试，结果保存在 `results/` 目录。
+
+### Phase 2A · 规则系统（Rule-Based）
+
+- **测试规模**：1,000 条用例全量测试
+- **平均响应时间**：< 0.1ms
+- **规则库导出**：908 条规则（25 城市 × 景点 / 餐厅 / 交通 / 预算），见 [`results/rule_based_city_rules.csv`](results/rule_based_city_rules.csv)
+- **输出文件**：[`results/phase2a_outputs.csv`](results/phase2a_outputs.csv) · [`results/phase2a_outputs.json`](results/phase2a_outputs.json)
+
+运行方式：
+
+```bash
+python scripts/run_phase2a.py
+```
+
+### Phase 2B · 监督学习系统（Supervised）
+
+- **测试规模**：1,000 条用例全量测试
+- **模型准确率**：84.45%（VotingClassifier：GBT + RF + ExtraTrees）
+- **Top 特征**：出行类型（0.2189）· 自然兴趣（0.1376）· 旅行天数（0.1339）
+- **训练数据集**：10,000 条合成样本，见 `systems/supervised/training_dataset.json`
+- **输出文件**：[`results/phase2b_outputs.csv`](results/phase2b_outputs.csv) · [`results/phase2b_outputs.json`](results/phase2b_outputs.json)
+
+运行方式：
+
+```bash
+python scripts/run_phase2b.py
+```
+
+### Phase 2C · 目标导向智能体（Goal-Based）
+
+- **测试规模**：20 条代表性用例 × 3 次独立运行（共 60 次 LLM 调用）
+- **平均响应时间**：426s（含 Qwen3.6-plus 推理 + Tavily 联网搜索）
+- **非确定性验证**：跨运行平均输出长度差异 1,368 字符，印证了 LLM 的非确定性特征
+- **重试机制**：网络断开自动重试 3 次（15 / 30 / 45s 退避）
+- **输出文件**：[`results/phase2c_outputs.csv`](results/phase2c_outputs.csv) · [`results/phase2c_outputs.json`](results/phase2c_outputs.json)
+
+运行方式：
+
+```bash
+python scripts/run_phase2c.py           # 默认 20 条
+python scripts/run_phase2c.py --count 5 # 快速验证
+```
+
+---
+
 ## 文档导航
 
 | 文件 | 内容 |
