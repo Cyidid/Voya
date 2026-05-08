@@ -98,7 +98,20 @@ def run(count: int = 20):
         for run_idx in range(1, RUNS_PER_CASE + 1):
             print(f"  → 第 {run_idx} 次运行...", end=" ", flush=True)
             t0 = time.time()
-            result = agent.generate_itinerary(user_request, meta, use_cache=False)
+            # 重试逻辑：网络断开最多重试3次
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    result = agent.generate_itinerary(user_request, meta, use_cache=False)
+                    break
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        wait = (attempt + 1) * 15
+                        print(f"\n    ⚠️  {type(e).__name__}，{wait}s 后重试...", end=" ", flush=True)
+                        time.sleep(wait)
+                    else:
+                        print(f"\n    ❌ 重试{max_retries}次仍失败，跳过此次运行")
+                        result = {"itinerary": f"[ERROR: {e}]", "source": "error"}
             elapsed = round(time.time() - t0, 2)
             output = result.get("itinerary", "")
             print(f"完成 ({elapsed}s, {len(output)} 字)")

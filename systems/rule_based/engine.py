@@ -1014,7 +1014,8 @@ def _get_season(month: int) -> str:
 BUDGET_RULES = {
     "低": {"price_factor": 1.0},
     "中": {"price_factor": 2.5},
-    "高": {"price_factor": 5.0}
+    "高": {"price_factor": 5.0},
+    "不太确定": {"price_factor": 2.5},  # fallback to 中
 }
 
 INTEREST_PRIORITY = {
@@ -1445,7 +1446,8 @@ class RuleBasedEngine:
 
     def _select_meal(self, city_rules, budget, day=1):
         """选择餐厅 —— 按天轮换，避免每晚相同餐厅"""
-        restaurants = city_rules["restaurants"][budget]
+        budget_key = budget if budget in city_rules["restaurants"] else "中"
+        restaurants = city_rules["restaurants"][budget_key]
         price_factor = BUDGET_RULES[budget]["price_factor"]
         restaurant = restaurants[(day - 1) % len(restaurants)]
         # 用餐费用按预算有差别

@@ -70,3 +70,4 @@ pyproject.toml
 *.pptx
 *.xlsx
 *.csv
+!results/*.csv
