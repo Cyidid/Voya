@@ -38,14 +38,13 @@ def format_itinerary(result: dict) -> str:
 def run():
     os.makedirs(RESULTS_DIR, exist_ok=True)
 
-    print("=" * 60)
     print("Phase 2A: Rule-Based System 批量测试")
-    print("=" * 60)
+    print("-" * 40)
 
     with open(TEST_CASES_FILE, "r", encoding="utf-8") as f:
         test_cases = json.load(f)
 
-    print(f"📋 加载测试用例: {len(test_cases)} 条")
+    print(f"加载测试用例: {len(test_cases)} 条")
 
     records = []
     csv_rows = []
@@ -77,12 +76,12 @@ def run():
         csv_rows.append(record)
 
         if (i + 1) % 100 == 0:
-            print(f"  ✅ 已处理 {i+1}/{len(test_cases)} 条")
+            print(f"  已处理 {i+1}/{len(test_cases)} 条")
 
     # 保存 JSON
     with open(JSON_OUT, "w", encoding="utf-8") as f:
         json.dump(records, f, ensure_ascii=False, indent=2)
-    print(f"\n💾 JSON 已保存: {JSON_OUT}")
+    print(f"\nJSON 已保存: {JSON_OUT}")
 
     # 保存 CSV
     fieldnames = list(csv_rows[0].keys())
@@ -90,11 +89,11 @@ def run():
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(csv_rows)
-    print(f"💾 CSV 已保存: {CSV_OUT}")
+    print(f"CSV 已保存: {CSV_OUT}")
 
     # 统计
     avg_time = sum(r["processing_time_s"] for r in records) / len(records)
-    print(f"\n📊 统计:")
+    print(f"\n统计:")
     print(f"   总用例数: {len(records)}")
     print(f"   平均响应时间: {avg_time*1000:.1f}ms")
     print(f"   城市分布: {_count(records, 'city')}")

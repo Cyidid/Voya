@@ -62,24 +62,24 @@ def select_representative_cases(test_cases: list, count: int) -> list:
 def run(count: int = 20):
     os.makedirs(RESULTS_DIR, exist_ok=True)
 
-    print("=" * 60)
     print("Phase 2C: Goal-Based System 多次运行测试")
+    print("-" * 40)
     print(f"每条用例跑 {RUNS_PER_CASE} 次（禁用缓存，观察非确定性）")
-    print("=" * 60)
+    print("-" * 40)
 
     # 使用 agent_agentic（主智能体）
     try:
         from systems.goal_based.agent_agentic import TravelPlanningAgent
-        print("✅ 使用 Goal-Based Agent（qwen3.6-plus + 工具链）")
+        print("使用 Goal-Based Agent（qwen3.6-plus + 工具链）")
     except ImportError as e:
-        print(f"❌ 无法导入 Goal-Based Agent: {e}")
+        print(f"导入 Goal-Based Agent 失败: {e}")
         sys.exit(1)
 
     with open(TEST_CASES_FILE, "r", encoding="utf-8") as f:
         all_cases = json.load(f)
 
     selected = select_representative_cases(all_cases, count)
-    print(f"\n📋 已选 {len(selected)} 条代表性用例（覆盖不同城市/预算/类型）\n")
+    print(f"\n已选 {len(selected)} 条代表性用例（覆盖不同城市/预算/类型）\n")
 
     # 初始化 Agent（一次，避免重复初始化）
     agent = TravelPlanningAgent(enable_knowledge=True, enable_web_search=True)
@@ -107,10 +107,10 @@ def run(count: int = 20):
                 except Exception as e:
                     if attempt < max_retries - 1:
                         wait = (attempt + 1) * 15
-                        print(f"\n    ⚠️  {type(e).__name__}，{wait}s 后重试...", end=" ", flush=True)
+                        print(f"\n    {type(e).__name__}，{wait}s 后重试...", end=" ", flush=True)
                         time.sleep(wait)
                     else:
-                        print(f"\n    ❌ 重试{max_retries}次仍失败，跳过此次运行")
+                        print(f"\n    重试{max_retries}次仍失败，跳过此次运行")
                         result = {"itinerary": f"[ERROR: {e}]", "source": "error"}
             elapsed = round(time.time() - t0, 2)
             output = result.get("itinerary", "")
@@ -164,7 +164,7 @@ def run(count: int = 20):
     # 保存 JSON（包含完整输出）
     with open(JSON_OUT, "w", encoding="utf-8") as f:
         json.dump(json_records, f, ensure_ascii=False, indent=2)
-    print(f"\n💾 JSON 已保存: {JSON_OUT}")
+    print(f"\nJSON 已保存: {JSON_OUT}")
 
     # 保存 CSV
     if csv_rows:
@@ -173,17 +173,17 @@ def run(count: int = 20):
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(csv_rows)
-        print(f"💾 CSV 已保存: {CSV_OUT}")
+        print(f"CSV 已保存: {CSV_OUT}")
 
     # 统计摘要
     avg_variation = sum(r["length_variation"] for r in json_records) / len(json_records)
     avg_time = sum(r["avg_time_s"] for r in json_records) / len(json_records)
-    print(f"\n📊 统计:")
+    print(f"\n统计:")
     print(f"   测试用例数: {len(json_records)}")
     print(f"   每用例运行次数: {RUNS_PER_CASE}")
     print(f"   平均响应时间: {avg_time:.1f}s")
     print(f"   平均输出长度变化（非确定性）: {avg_variation:.0f} 字符")
-    print(f"\n📌 Phase 2C 提交物已就绪（见 results/ 目录）")
+    print(f"\nPhase 2C 提交物已就绪（见 results/ 目录）")
 
 
 if __name__ == "__main__":

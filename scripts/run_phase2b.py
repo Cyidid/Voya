@@ -27,9 +27,8 @@ JSON_OUT = os.path.join(RESULTS_DIR, "phase2b_outputs.json")
 def run():
     os.makedirs(RESULTS_DIR, exist_ok=True)
 
-    print("=" * 60)
     print("Phase 2B: Supervised System 批量测试")
-    print("=" * 60)
+    print("-" * 40)
 
     # 初始化引擎（会自动训练并保存模型）
     engine = SupervisedEngine()
@@ -39,7 +38,7 @@ def run():
     with open(TEST_CASES_FILE, "r", encoding="utf-8") as f:
         test_cases = json.load(f)
 
-    print(f"\n📋 开始测试 {len(test_cases)} 条用例...")
+    print(f"\n开始测试 {len(test_cases)} 条用例...")
 
     records = []
 
@@ -72,12 +71,12 @@ def run():
         records.append(record)
 
         if (i + 1) % 100 == 0:
-            print(f"  ✅ 已处理 {i+1}/{len(test_cases)} 条")
+            print(f"  已处理 {i+1}/{len(test_cases)} 条")
 
     # 保存 JSON
     with open(JSON_OUT, "w", encoding="utf-8") as f:
         json.dump(records, f, ensure_ascii=False, indent=2)
-    print(f"\n💾 JSON 已保存: {JSON_OUT}")
+    print(f"\nJSON 已保存: {JSON_OUT}")
 
     # 保存 CSV
     fieldnames = list(records[0].keys())
@@ -85,17 +84,17 @@ def run():
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(records)
-    print(f"💾 CSV 已保存: {CSV_OUT}")
+    print(f"CSV 已保存: {CSV_OUT}")
 
     # 统计
     avg_time = sum(r["processing_time_s"] for r in records) / len(records)
     type_dist = _count(records, "prediction_type")
-    print(f"\n📊 统计:")
+    print(f"\n统计:")
     print(f"   总用例数: {len(records)}")
     print(f"   平均响应时间: {avg_time*1000:.1f}ms")
     print(f"   推荐类型分布: {type_dist}")
-    print(f"\n📁 训练数据集: systems/supervised/training_dataset.json")
-    print(f"📁 训练好的模型: systems/supervised/model.pkl")
+    print(f"\n训练数据集: systems/supervised/training_dataset.json")
+    print(f"训练好的模型: systems/supervised/model.pkl")
 
 
 def _count(records, key):
